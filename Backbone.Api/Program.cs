@@ -8,14 +8,10 @@ using Serilog;
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
 
-// Configure Serilog
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console()
-    .WriteTo.File("logs/api_log.txt", rollingInterval: RollingInterval.Day)
-    .Enrich.FromLogContext()
-    .CreateLogger();
-
-builder.Host.UseSerilog();
+// Use Serilog with configuration from appsettings.json
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services));
 
 // Add services
 builder.Services.AddEndpointsApiExplorer();
