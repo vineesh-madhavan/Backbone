@@ -23,12 +23,6 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(config);
 
-// 🔹 Add Controllers and Exception Filter Here
-builder.Services.AddControllers(options =>
-{
-    options.Filters.Add<ExceptionFilter>();
-});
-
 var app = builder.Build();
 
 // Use Middleware for Exception Handling
