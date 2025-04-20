@@ -1,18 +1,11 @@
-//Backbone.Application/Commands/LoginCommand.cs
+﻿using Backbone.Core.Interfaces;
 using MediatR;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using Backbone.Core.Interfaces;
 using Serilog;
+using Backbone.Application.Commands;
 
-namespace Backbone.Application.Commands
+namespace Backbone.Application.Features.Authentication.Handlers
 {
-    public record LoginCommand(string Username, string Password) : IRequest<LoginResponse>;
-
-    public record LoginResponse(bool Success, string? Token, string? ErrorMessage);
-
     public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
     {
         private readonly IJwtService _jwtService;

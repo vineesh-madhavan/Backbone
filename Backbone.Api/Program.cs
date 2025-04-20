@@ -1,8 +1,10 @@
+//Backbone.Api/Program.cs
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Backbone.Application;
 using Backbone.Application.Commands;
 using Backbone.Infrastructure;
+using Backbone.Infrastructure.Persistence;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,6 +27,9 @@ var app = builder.Build();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseSerilogRequestLogging(); // Log incoming requests
+
+// Apply migrations at startup
+app.UseMigrations();
 
 // Middleware
 app.UseSwagger();

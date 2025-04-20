@@ -1,4 +1,4 @@
-namespace Backbone.Domain.Interfaces;
+namespace Backbone.Core.Interfaces;
 
 public interface IJwtService
 {

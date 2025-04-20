@@ -4,7 +4,7 @@ using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Backbone.Domain.Interfaces;
+using Backbone.Core.Interfaces;
 
 namespace Backbone.Infrastructure.Services  // ✅ Ensure correct namespace
 {

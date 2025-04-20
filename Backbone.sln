@@ -7,7 +7,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backbone.Api", "Backbone.Ap
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backbone.Application", "Backbone.Application\Backbone.Application.csproj", "{5917B19C-71ED-438F-A202-D130B9FB45F1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backbone.Domain", "Backbone.Domain\Backbone.Domain.csproj", "{0883B471-C372-4579-888E-B1E331223D33}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backbone.Core", "Backbone.Core\Backbone.Core.csproj", "{0883B471-C372-4579-888E-B1E331223D33}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backbone.Infrastructure", "Backbone.Infrastructure\Backbone.Infrastructure.csproj", "{49A15505-8421-47B9-AD48-6672A1371879}"
 EndProject

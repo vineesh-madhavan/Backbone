@@ -1,19 +1,17 @@
-using Microsoft.Extensions.DependencyInjection;
+using Backbone.Core.Interfaces;  // ✅ Import IJwtService
+using Backbone.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using Backbone.Infrastructure.Services;
-using Backbone.Domain.Interfaces;  // ✅ Import IJwtService
-using MediatR;
-using Microsoft.Extensions.Configuration;
-using Backbone.Application.Commands;
 
 public static class ServiceRegistration
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration config)
     {
         services.AddSingleton<IJwtService, JwtService>();  // ✅ Ensure JwtService is correctly registered
-        services.AddMediatR(typeof(LoginCommandHandler).Assembly);
+        //services.AddMediatR(typeof(LoginCommandHandler).Assembly);
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
