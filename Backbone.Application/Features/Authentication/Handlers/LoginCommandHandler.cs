@@ -2,7 +2,7 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using Backbone.Application.Commands;
+using Backbone.Application.Features.Authentication.Commands.Login;  
 
 namespace Backbone.Application.Features.Authentication.Handlers
 {

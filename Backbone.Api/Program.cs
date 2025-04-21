@@ -1,10 +1,12 @@
 //Backbone.Api/Program.cs
+using Backbone.Application;
+using Backbone.Application.Features.Authentication.Commands.Login;
+using Backbone.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
-using Backbone.Application;
-using Backbone.Application.Commands;
-using Backbone.Infrastructure;
-using Backbone.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Polly;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,11 +17,35 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
     .ReadFrom.Services(services));
 
+
+
 // Add services
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddApplicationServices();
+builder.Services.AddApplication();
 builder.Services.AddInfrastructureServices(config);
+//builder.Services.AddHealthChecks()
+//    .AddNpgSql(configuration.GetConnectionString("DefaultConnection"));
+
+//For DBContext
+// Essential registration (minimum)
+//builder.Services.AddDbContext<ApplicationDbContext>(options =>
+//    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Recommended production-ready registration:
+builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        npgsqlOptions =>
+        {
+            npgsqlOptions.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName);
+            npgsqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(10),
+                errorCodesToAdd: null); // Explicitly pass null for error codes
+        }),
+    poolSize: 128);
 
 var app = builder.Build();
 
@@ -27,6 +53,7 @@ var app = builder.Build();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseSerilogRequestLogging(); // Log incoming requests
+
 
 // Apply migrations at startup
 app.UseMigrations();
