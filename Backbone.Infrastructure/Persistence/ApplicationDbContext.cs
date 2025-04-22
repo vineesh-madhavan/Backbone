@@ -31,6 +31,20 @@ namespace Backbone.Infrastructure.Persistence
             modelBuilder.HasPostgresExtension("uuid-ossp");
 
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+
+            // Configure BaseEntity properties
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes()
+                .Where(e => typeof(BaseEntity).IsAssignableFrom(e.ClrType)))
+            {
+                modelBuilder.Entity(entityType.ClrType)
+                    .Property(nameof(BaseEntity.CreatedAt))
+                    .HasDefaultValueSql("NOW()");
+
+                modelBuilder.Entity(entityType.ClrType)
+                    .Property(nameof(BaseEntity.UpdatedAt))
+                    .IsRequired(false);
+            }
+
             base.OnModelCreating(modelBuilder);
         }
     }

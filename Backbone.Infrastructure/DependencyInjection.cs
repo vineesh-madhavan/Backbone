@@ -1,4 +1,6 @@
 ﻿// Infrastructure/DependencyInjection.cs
+using Backbone.Core.Interfaces;
+using Backbone.Infrastructure.Data;
 using Backbone.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -22,6 +24,10 @@ namespace Infrastructure
 
             //// MediatR v11 registration (using assembly scanning)
             //services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
+
+            // Repository and UoW registration
+            services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             return services;
         }
