@@ -15,7 +15,9 @@ var config = builder.Configuration;
 // Use Serilog with configuration from appsettings.json
 builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
-    .ReadFrom.Services(services));
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    );
 
 
 
