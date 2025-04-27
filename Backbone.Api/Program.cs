@@ -1,25 +1,34 @@
 //Backbone.Api/Program.cs
 using Backbone.Application;
 using Backbone.Application.Features.Authentication.Commands.Login;
+using Backbone.Infrastructure.Logging;
 using Backbone.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Polly;
 using Serilog;
+using Serilog.Core;
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
 
-// Use Serilog with configuration from appsettings.json
-builder.Host.UseSerilog((context, services, configuration) => configuration
-    .ReadFrom.Configuration(context.Configuration)
-    .ReadFrom.Services(services)
-    .Enrich.FromLogContext()
-    );
+//// Use Serilog with configuration from appsettings.json
+//builder.Host.UseSerilog((context, services, configuration) => configuration
+//    .ReadFrom.Configuration(context.Configuration)
+//    .ReadFrom.Services(services)
+//    .Enrich.FromLogContext()  
+//    );
 
-
+builder.Host
+    .UseCustomSerilog()  // From Infrastructure
+    .ConfigureServices(services => {
+        // Remove AddSerilogLogging() if not defined
+        services.AddLogging(logging =>
+        {
+            logging.AddSerilog();
+        });
+    });
 
 // Add services
 builder.Services.AddEndpointsApiExplorer();
@@ -49,7 +58,29 @@ builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
         }),
     poolSize: 128);
 
+
+
 var app = builder.Build();
+
+public class DatabaseSinkProvider : ILogEventSink, IDisposable
+{
+    private readonly IServiceProvider _serviceProvider;
+
+    public DatabaseSinkProvider(IServiceProvider serviceProvider)
+    {
+        _serviceProvider = serviceProvider;
+    }
+
+    public void Emit(LogEvent logEvent)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var sink = scope.ServiceProvider.GetRequiredService<DatabaseSink>();
+        sink.Emit(logEvent);
+    }
+
+    public void Dispose() { }
+}
+
 
 // Use Middleware for Exception Handling
 app.UseMiddleware<ExceptionHandlingMiddleware>();

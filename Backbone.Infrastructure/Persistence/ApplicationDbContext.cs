@@ -1,6 +1,7 @@
 ﻿
 // Infrastructure/Persistence/ApplicationDbContext.cs
 using Backbone.Core.Entities;
+using Backbone.Infrastructure.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Backbone.Infrastructure.Persistence
@@ -13,6 +14,7 @@ namespace Backbone.Infrastructure.Persistence
         }
 
         public DbSet<User> Users { get; set; }
+        public DbSet<ApplicationLog> ApplicationLogs { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
