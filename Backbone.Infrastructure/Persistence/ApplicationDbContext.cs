@@ -42,9 +42,9 @@ namespace Backbone.Infrastructure.Persistence
                     .Property(nameof(BaseEntity.CreatedAt))
                     .HasDefaultValueSql("NOW()");
 
-                modelBuilder.Entity(entityType.ClrType)
-                    .Property(nameof(BaseEntity.UpdatedAt))
-                    .IsRequired(false);
+                //modelBuilder.Entity(entityType.ClrType)
+                //    .Property(nameof(BaseEntity.UpdatedAt))
+                //    .IsRequired(false);
             }
 
             base.OnModelCreating(modelBuilder);

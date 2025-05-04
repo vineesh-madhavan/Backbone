@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Serilog.Core;
 using Serilog.Events;
 using System;
-using NewtonSoft.JSON;
+using Newtonsoft.Json;
 
 public class DatabaseSink : ILogEventSink
 {

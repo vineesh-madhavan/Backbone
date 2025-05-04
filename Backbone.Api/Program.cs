@@ -62,24 +62,7 @@ builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
 
 var app = builder.Build();
 
-public class DatabaseSinkProvider : ILogEventSink, IDisposable
-{
-    private readonly IServiceProvider _serviceProvider;
 
-    public DatabaseSinkProvider(IServiceProvider serviceProvider)
-    {
-        _serviceProvider = serviceProvider;
-    }
-
-    public void Emit(LogEvent logEvent)
-    {
-        using var scope = _serviceProvider.CreateScope();
-        var sink = scope.ServiceProvider.GetRequiredService<DatabaseSink>();
-        sink.Emit(logEvent);
-    }
-
-    public void Dispose() { }
-}
 
 
 // Use Middleware for Exception Handling
@@ -101,3 +84,25 @@ app.MapPost("/login", async (LoginCommand command, IMediator mediator) => await 
 app.MapGet("/secure", [Authorize] () => "This is a secure endpoint");
 
 app.Run();
+
+namespace Backbone.Api
+{
+    public class DatabaseSinkProvider : ILogEventSink, IDisposable
+    {
+        private readonly IServiceProvider _serviceProvider;
+
+        public DatabaseSinkProvider(IServiceProvider serviceProvider)
+        {
+            _serviceProvider = serviceProvider;
+        }
+
+        public void Emit(LogEvent logEvent)
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var sink = scope.ServiceProvider.GetRequiredService<DatabaseSink>();
+            sink.Emit(logEvent);
+        }
+
+        public void Dispose() { }
+    }
+}

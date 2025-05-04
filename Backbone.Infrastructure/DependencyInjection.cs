@@ -8,6 +8,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Backbone.Infrastructure.Interceptors;
+using Backbone.Infrastructure.Services;
 
 namespace Infrastructure
 {
@@ -42,17 +45,22 @@ namespace Infrastructure
             {
                 options.UseNpgsql(connectionString)
                        .EnableDetailedErrors()
-                       .EnableSensitiveDataLogging() // Only in development
+                       .EnableSensitiveDataLogging()
                        .AddInterceptors(
-                           sp.GetRequiredService<SerilogDbContextInterceptor>(),
-                           new DbContextSaveChangesInterceptor());
+                           sp.GetRequiredService<MasterSaveChangesInterceptor>(),
+                           sp.GetRequiredService<SerilogDbContextInterceptor>());
             });
 
+            services.AddHttpContextAccessor();
+            services.AddScoped<ICurrentUserService, CurrentUserService>();
 
             // Repository and UoW registration
             services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
             services.AddScoped<IUnitOfWork, UnitOfWork>();
             services.AddScoped<SerilogDbContextInterceptor>();
+            services.AddSingleton<TimeProvider>(TimeProvider.System);
+            services.AddScoped<ICurrentUserService, CurrentUserService>();
+            services.AddScoped<MasterSaveChangesInterceptor>();
 
 
 
