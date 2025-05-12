@@ -35,6 +35,36 @@ namespace Backbone.Infrastructure.Services  // ✅ Ensure correct namespace
         //    return tokenHandler.WriteToken(token);
         //}
 
+        //public string GenerateToken(string username, IEnumerable<string> roles)
+        //{
+        //    var tokenHandler = new JwtSecurityTokenHandler();
+        //    var key = Encoding.UTF8.GetBytes(_config["Jwt:Key"]);
+
+        //    var claims = new List<Claim>
+        //    {
+        //        new Claim(ClaimTypes.Name, username)
+        //    };
+
+        //    // Add all roles as individual claims
+        //    foreach (var role in roles)
+        //    {
+        //        claims.Add(new Claim(ClaimTypes.Role, role));
+        //    }
+
+        //    var tokenDescriptor = new SecurityTokenDescriptor
+        //    {
+        //        Subject = new ClaimsIdentity(claims),
+        //        Expires = DateTime.UtcNow.AddHours(1),
+        //        Issuer = _config["Jwt:Issuer"],
+        //        Audience = _config["Jwt:Audience"],
+        //        SigningCredentials = new SigningCredentials(
+        //            new SymmetricSecurityKey(key),
+        //            SecurityAlgorithms.HmacSha256Signature)
+        //    };
+
+        //    return tokenHandler.WriteToken(tokenHandler.CreateToken(tokenDescriptor));
+        //}
+
         public string GenerateToken(string username, IEnumerable<string> roles)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -42,7 +72,10 @@ namespace Backbone.Infrastructure.Services  // ✅ Ensure correct namespace
 
             var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.Name, username)
+                new Claim(ClaimTypes.Name, username),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(JwtRegisteredClaimNames.Sub, username),
+                new Claim(JwtRegisteredClaimNames.Email, username) // if username is email
             };
 
             // Add all roles as individual claims
@@ -54,7 +87,8 @@ namespace Backbone.Infrastructure.Services  // ✅ Ensure correct namespace
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddHours(1),
+                //Expires = DateTime.UtcNow.AddHours(1),
+                Expires = DateTime.UtcNow.AddMinutes(15),
                 Issuer = _config["Jwt:Issuer"],
                 Audience = _config["Jwt:Audience"],
                 SigningCredentials = new SigningCredentials(

@@ -127,13 +127,27 @@ namespace Backbone.Infrastructure.Data
             }
             else if (spec.OrderBys?.Count > 0)
             {
-                var orderedQuery = (IOrderedQueryable<T>?)null;
+                IOrderedQueryable<T>? orderedQuery = null;
 
                 foreach (var orderBy in spec.OrderBys)
                 {
                     orderedQuery = orderedQuery == null
                         ? query.OrderBy(orderBy)
                         : orderedQuery.ThenBy(orderBy);
+                }
+
+                if (orderedQuery != null)
+                    query = orderedQuery;
+            }
+            else if (spec.OrderByDescendings?.Count > 0)
+            {
+                IOrderedQueryable<T>? orderedQuery = null;
+
+                foreach (var orderByDesc in spec.OrderByDescendings)
+                {
+                    orderedQuery = orderedQuery == null
+                        ? query.OrderByDescending(orderByDesc)
+                        : orderedQuery.ThenByDescending(orderByDesc);
                 }
 
                 if (orderedQuery != null)

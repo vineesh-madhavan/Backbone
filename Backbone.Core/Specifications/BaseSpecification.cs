@@ -56,5 +56,19 @@ namespace Backbone.Core.Specifications
         {
             IncludeDeleted = true;
         }
+
+        public List<Expression<Func<T, object>>> OrderBys { get; } = new();
+        public List<Expression<Func<T, object>>> OrderByDescendings { get; } = new();
+
+        // Add methods to add ordering
+        protected void AddOrderBy(Expression<Func<T, object>> orderByExpression)
+        {
+            OrderBys.Add(orderByExpression);
+        }
+
+        protected void AddOrderByDescending(Expression<Func<T, object>> orderByDescendingExpression)
+        {
+            OrderByDescendings.Add(orderByDescendingExpression);
+        }
     }
 }

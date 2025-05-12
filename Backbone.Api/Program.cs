@@ -61,6 +61,20 @@ builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
 
 builder.Services.AddRepositories();
 
+builder.Services.AddAuthorization(options =>
+{
+    // Define your role-based policies
+    options.AddPolicy("RequireAdminRole", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("RequireMasterRole", policy => policy.RequireRole("Master", "Admin")); // Managers and Admins can access
+    options.AddPolicy("RequireSubscriberRole", policy => policy.RequireRole("Subscriber", "Master", "Admin"));
+
+    // Or you can use more flexible requirements
+    //options.AddPolicy("AtLeastModerator", policy =>
+    //    policy.RequireAssertion(context =>
+    //        context.User.IsInRole("Moderator") ||
+    //        context.User.IsInRole("Admin")));
+});
+
 var app = builder.Build();
 
 

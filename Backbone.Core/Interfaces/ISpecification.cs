@@ -9,6 +9,8 @@ public interface ISpecification<T>
     List<string> IncludeStrings { get; }
     Expression<Func<T, object>> OrderBy { get; }
     Expression<Func<T, object>> OrderByDescending { get; }
+    List<Expression<Func<T, object>>> OrderBys { get; } // Add this
+    List<Expression<Func<T, object>>> OrderByDescendings { get; } // Optional for multiple descending
     int Take { get; }
     int Skip { get; }
     bool IsPagingEnabled { get; }
