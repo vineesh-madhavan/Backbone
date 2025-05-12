@@ -1,6 +1,7 @@
 ﻿// Backbone.Infrastructure/Data/EfRepository.cs
 using Backbone.Core.Entities;
 using Backbone.Core.Interfaces;
+using Backbone.Core.Interfaces.Data.Repositories;
 using Backbone.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;

@@ -3,6 +3,7 @@ using Backbone.Application;
 using Backbone.Application.Features.Authentication.Commands.Login;
 using Backbone.Infrastructure.Logging;
 using Backbone.Infrastructure.Persistence;
+using Backbone.Infrastructure.Extensions;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -58,7 +59,7 @@ builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
         }),
     poolSize: 128);
 
-
+builder.Services.AddRepositories();
 
 var app = builder.Build();
 

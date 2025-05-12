@@ -1,4 +1,4 @@
-//Backbone.Infrastructure/Services/JwtService.cs
+ //Backbone.Infrastructure/Services/JwtService.cs
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System;
@@ -6,6 +6,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Backbone.Core.Interfaces;
+using Backbone.Core.Entities;
 
 namespace Backbone.Infrastructure.Services  // ✅ Ensure correct namespace
 {

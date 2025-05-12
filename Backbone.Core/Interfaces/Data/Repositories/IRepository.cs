@@ -3,7 +3,7 @@ using Backbone.Core.Entities;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Backbone.Core.Interfaces
+namespace Backbone.Core.Interfaces.Data.Repositories
 {
     public interface IRepository<T> where T : BaseEntity
     {
@@ -23,7 +23,7 @@ namespace Backbone.Core.Interfaces
             ISpecification<T> spec,
             CancellationToken cancellationToken = default);
 
-        Task<int> CountAsync(
+        Task<int> CountAsync( 
             ISpecification<T> spec,
             CancellationToken cancellationToken = default);
     }

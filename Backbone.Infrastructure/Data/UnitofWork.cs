@@ -1,5 +1,6 @@
 ﻿using Backbone.Core.Entities;
 using Backbone.Core.Interfaces;
+using Backbone.Core.Interfaces.Data.Repositories;
 using Backbone.Infrastructure.Persistence;
 using System.Collections;
 

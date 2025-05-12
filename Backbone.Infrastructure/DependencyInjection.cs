@@ -11,6 +11,7 @@ using Serilog;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Backbone.Infrastructure.Interceptors;
 using Backbone.Infrastructure.Services;
+using Backbone.Core.Interfaces.Data.Repositories;
 
 namespace Infrastructure
 {

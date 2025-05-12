@@ -1,13 +1,8 @@
 ﻿// Infrastructure/Interceptors/MasterSaveChangesInterceptor.cs
+using Backbone.Core.Interfaces;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Backbone.Core.Interfaces;
-using System.Threading;
-using System.Threading.Tasks;
-using MediatR;
-using System.Linq;
-using System.Collections.Generic;
-using Backbone.Infrastructure.Extensions;
 
 namespace Backbone.Infrastructure.Interceptors
 {
@@ -46,21 +41,22 @@ namespace Backbone.Infrastructure.Interceptors
         private void ProcessAuditableEntities(DbContext context)
         {
             var utcNow = _timeProvider.GetUtcNow();
-            var userId = _currentUser.UserId ?? "SYSTEM";
+            var userName = _currentUser.Username ?? "SYSTEM";
 
             foreach (var entry in context.ChangeTracker.Entries<IAuditableEntity>())
             {
                 if (entry.State == EntityState.Added)
                 {
-                    entry.Entity.CreatedAt = utcNow;
-                    entry.Entity.CreatedBy = userId;
+                    if (entry.Entity.CreatedAt == default)
+                    {
+                        entry.Entity.CreatedAt = utcNow;
+                    }
+                    entry.Entity.CreatedBy = userName;
                 }
 
-                if (entry.State == EntityState.Modified || entry.HasChangedOwnedEntities())
-                {
-                    entry.Entity.LastModifiedAt = utcNow;
-                    entry.Entity.LastModifiedBy = userId;
-                }
+                // Always set modified fields (even if just owned entities changed)
+                entry.Entity.LastModifiedAt = utcNow;
+                entry.Entity.LastModifiedBy = userName;
             }
         }
 
@@ -73,7 +69,7 @@ namespace Backbone.Infrastructure.Interceptors
                     entry.State = EntityState.Modified;
                     entry.Entity.IsDeleted = true;
                     entry.Entity.DeletedAt = _timeProvider.GetUtcNow();
-                    entry.Entity.DeletedBy = _currentUser.UserId;
+                    entry.Entity.DeletedBy = _currentUser.Username;
                 }
             }
         }
