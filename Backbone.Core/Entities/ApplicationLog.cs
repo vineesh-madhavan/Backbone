@@ -13,6 +13,15 @@ namespace Backbone.Infrastructure.Entities
         [Column("id")]
         public int Id { get; set; }
 
+        [Column("user_name")]
+        public string UserName { get; set; }
+        [Column("user_roles")]
+        public string UserRoles { get; set; }  // Comma-separated roles
+        [Column("jwt_token_id")]
+        public string JwtTokenId { get; set; } // Stores the jti claim
+        [Column("jwt_token_expiry")]
+        public DateTime? TokenExpiry { get; set; }
+
         [Column("project_name")]
         public string ProjectName { get; set; }
 
