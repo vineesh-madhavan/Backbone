@@ -4,16 +4,20 @@ using Backbone.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 
 namespace Backbone.Infrastructure.Services
 {
     public class CurrentUserService : ICurrentUserService
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly ILogger<CurrentUserService> _logger;
 
-        public CurrentUserService(IHttpContextAccessor httpContextAccessor)
+        public CurrentUserService(IHttpContextAccessor httpContextAccessor, ILogger<CurrentUserService> logger)
         {
             _httpContextAccessor = httpContextAccessor;
+            _logger = logger;
+            _logger.LogDebug("CurrentUserService initialized");
         }
 
         // Primary identifier from claims
@@ -26,11 +30,18 @@ namespace Backbone.Infrastructure.Services
         // Removed Email property since it's in UserDetail entity
         // and not included in the JWT claims
 
-        public IEnumerable<string> Roles => _httpContextAccessor.HttpContext?.User?
-            .FindAll(ClaimTypes.Role).Select(c => c.Value) ?? Enumerable.Empty<string>();
-
         public bool IsAuthenticated => _httpContextAccessor.HttpContext?.User?
             .Identity?.IsAuthenticated ?? false;
+        public IEnumerable<string> Roles
+        {
+            get
+            {
+                var roles = _httpContextAccessor.HttpContext?.User?
+                    .FindAll(ClaimTypes.Role).Select(c => c.Value) ?? Enumerable.Empty<string>();
+                _logger.LogTrace("User {Username} has roles: {Roles}", Username, string.Join(",", roles));
+                return roles;
+            }
+        }
 
         // Role check helper methods
         public bool IsInRole(string role)

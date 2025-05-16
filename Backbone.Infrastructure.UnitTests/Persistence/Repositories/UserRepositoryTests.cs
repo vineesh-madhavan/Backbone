@@ -5,6 +5,8 @@ using Backbone.Infrastructure.Data;
 using Backbone.Infrastructure.Persistence;
 using Backbone.Infrastructure.Tests.Mocks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Moq;
 using System.Collections.Generic;
 using System.Linq;
 using Xunit;
@@ -16,6 +18,7 @@ namespace Backbone.Infrastructure.UnitTests.Persistence.Repositories
         private readonly ApplicationDbContext _dbContext;
         private readonly EfRepository<User> _repository;
         private readonly MockCurrentUserService _currentUserService;
+        private readonly Mock<ILogger<EfRepository<User>>> _mockLogger;
 
         public UserRepositoryTests()
         {
@@ -24,7 +27,8 @@ namespace Backbone.Infrastructure.UnitTests.Persistence.Repositories
                 .Options;
 
             _dbContext = new ApplicationDbContext(options);
-            _repository = new EfRepository<User>(_dbContext);
+            _mockLogger = new Mock<ILogger<EfRepository<User>>>();
+            _repository = new EfRepository<User>(_dbContext, _mockLogger.Object);
             _currentUserService = new MockCurrentUserService();
         }
 

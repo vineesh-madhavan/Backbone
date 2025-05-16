@@ -1,4 +1,4 @@
- //Backbone.Infrastructure/Services/JwtService.cs
+//Backbone.Infrastructure/Services/JwtService.cs
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System;
@@ -6,51 +6,84 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Backbone.Core.Interfaces;
-using Backbone.Core.Entities;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.Extensions.Logging;
 
-namespace Backbone.Infrastructure.Services  // ✅ Ensure correct namespace
+namespace Backbone.Infrastructure.Services
 {
-    public class JwtService : IJwtService  // ✅ Now references IJwtService from Backbone.Domain
+    public class JwtService : IJwtService
     {
         private readonly IConfiguration _config;
+        private readonly ILogger<JwtService> _logger;
 
-        public JwtService(IConfiguration config)
+        public JwtService(IConfiguration config, ILogger<JwtService> logger)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public string GenerateToken(string username, IEnumerable<string> roles)
         {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.UTF8.GetBytes(_config["Jwt:Key"]);
+            _logger.LogInformation("Generating JWT for {Username} with roles: {Roles}",
+                username, string.Join(",", roles));
 
-            var claims = new List<Claim>
+            try
             {
-                new Claim(ClaimTypes.Name, username),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim(JwtRegisteredClaimNames.Sub, username),
-                new Claim(JwtRegisteredClaimNames.Email, username) // if username is email
-            };
+                // Input validation
+                if (string.IsNullOrEmpty(username))
+                {
+                    throw new ArgumentException("Username cannot be null or empty", nameof(username));
+                }
 
-            // Add all roles as individual claims
-            foreach (var role in roles)
-            {
-                claims.Add(new Claim(ClaimTypes.Role, role));
+                if (roles == null || !roles.Any())
+                {
+                    _logger.LogWarning("No roles provided for user {Username}", username);
+                    roles = new[] { "DefaultRole" }; // Provide a default role if empty
+                }
+
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var key = Encoding.UTF8.GetBytes(_config["Jwt:Key"]);
+
+                if (key.Length < 32) // Minimum 256-bit key for HS256
+                {
+                    throw new ArgumentException("JWT key must be at least 256 bits (32 bytes)");
+                }
+
+                var claims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.Name, username),
+                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                    new Claim(JwtRegisteredClaimNames.Sub, username),
+                    new Claim(JwtRegisteredClaimNames.Email, username)
+                };
+
+                claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+
+                var tokenDescriptor = new SecurityTokenDescriptor
+                {
+                    Subject = new ClaimsIdentity(claims),
+                    Expires = DateTime.UtcNow.AddMinutes(15),
+                    Issuer = _config["Jwt:Issuer"],
+                    Audience = _config["Jwt:Audience"],
+                    SigningCredentials = new SigningCredentials(
+                        new SymmetricSecurityKey(key),
+                        SecurityAlgorithms.HmacSha256)
+                };
+
+                var token = tokenHandler.CreateToken(tokenDescriptor);
+                var jwtToken = tokenHandler.WriteToken(token);
+
+                _logger.LogDebug("Successfully generated JWT for {Username} with ID {TokenId} expiring at {Expiration}",
+                    username, token.Id, token.ValidTo);
+
+                return jwtToken;
             }
-
-            var tokenDescriptor = new SecurityTokenDescriptor
+            catch (Exception ex)
             {
-                Subject = new ClaimsIdentity(claims),
-                //Expires = DateTime.UtcNow.AddHours(1),
-                Expires = DateTime.UtcNow.AddMinutes(15),
-                Issuer = _config["Jwt:Issuer"],
-                Audience = _config["Jwt:Audience"],
-                SigningCredentials = new SigningCredentials(
-                    new SymmetricSecurityKey(key),
-                    SecurityAlgorithms.HmacSha256Signature)
-            };
-
-            return tokenHandler.WriteToken(tokenHandler.CreateToken(tokenDescriptor));
+                _logger.LogError(ex, "Failed to generate JWT for {Username}", username);
+                throw new SecurityTokenException("Token generation failed", ex);
+            }
         }
     }
 }

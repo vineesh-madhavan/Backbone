@@ -4,6 +4,7 @@ using Backbone.Core.Interfaces;
 using Backbone.Core.Interfaces.Data.Repositories;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using System.Security.Authentication;
 
 namespace Backbone.Application.Features.Authentication.Handlers
 {
@@ -94,13 +95,66 @@ namespace Backbone.Application.Features.Authentication.Handlers
             _userRepository = userRepository;
         }
 
+        //    public async Task<LoginResponse> Handle(LoginCommand request, CancellationToken cancellationToken)
+        //    {
+        //        try
+        //        {
+        //            _logger.LogInformation("Login attempt for user: {Username}", request.Username);
+
+        //            // Validate credentials using existing repository method
+        //            var isValid = await _userRepository.ValidateCredentialsAsync(
+        //                request.Username,
+        //                request.Password,
+        //                cancellationToken);
+
+        //            if (!isValid)
+        //            {
+        //                _logger.LogWarning("Failed login attempt for user: {Username}", request.Username);
+        //                return new LoginResponse(false, null, "Invalid credentials");
+        //            }
+
+        //            // Get user with roles for token generation
+        //            var user = await _userRepository.GetByUsernameAsync(
+        //                request.Username,
+        //                 true,
+        //                cancellationToken: cancellationToken);
+
+        //            if (user == null)
+        //            {
+        //                _logger.LogWarning("User not found after credential validation: {Username}", request.Username);
+        //                return new LoginResponse(false, null, "User not found");
+        //            }
+
+        //            // Extract roles for token generation
+        //            var roles = user.UserRoleMappings
+        //                .Select(urm => urm.Role?.RoleName)
+        //                .Where(roleName => !string.IsNullOrEmpty(roleName))
+        //                .ToList();
+
+        //            // Generate token using your existing method
+        //            var token = _jwtService.GenerateToken(user.UserName, roles);
+
+        //            _logger.LogInformation("User {Username} authenticated successfully", request.Username);
+        //            return new LoginResponse(true, token, null);
+        //        }
+        //        catch (Exception ex)
+        //        {
+        //            _logger.LogError(ex, "Error during login for user: {Username}", request.Username);
+        //            throw;
+        //        }
+        //    }
+
         public async Task<LoginResponse> Handle(LoginCommand request, CancellationToken cancellationToken)
         {
+            // Add operation context logging
+            using var _ = _logger.BeginScope(new { request.Username, RequestId = Guid.NewGuid() });
+
             try
             {
-                _logger.LogInformation("Login attempt for user: {Username}", request.Username);
+                _logger.LogInformation("Login attempt initiated");
+                _logger.LogDebug("Validating credentials for {Username}", request.Username);
 
-                // Validate credentials using existing repository method
+                // Validate credentials
                 var isValid = await _userRepository.ValidateCredentialsAsync(
                     request.Username,
                     request.Password,
@@ -108,38 +162,57 @@ namespace Backbone.Application.Features.Authentication.Handlers
 
                 if (!isValid)
                 {
-                    _logger.LogWarning("Failed login attempt for user: {Username}", request.Username);
+                    _logger.LogWarning("Invalid credentials provided for {Username}", request.Username);
                     return new LoginResponse(false, null, "Invalid credentials");
                 }
 
-                // Get user with roles for token generation
+                _logger.LogDebug("Credentials validated, retrieving user details");
+
+                // Get user with roles
                 var user = await _userRepository.GetByUsernameAsync(
                     request.Username,
-                     true,
+                    true,
                     cancellationToken: cancellationToken);
 
                 if (user == null)
                 {
-                    _logger.LogWarning("User not found after credential validation: {Username}", request.Username);
-                    return new LoginResponse(false, null, "User not found");
+                    _logger.LogError("User not found after successful credential validation for {Username}", request.Username);
+                    return new LoginResponse(false, null, "System error");
                 }
 
-                // Extract roles for token generation
-                var roles = user.UserRoleMappings
+                // Extract roles with null check
+                var roles = user.UserRoleMappings?
                     .Select(urm => urm.Role?.RoleName)
                     .Where(roleName => !string.IsNullOrEmpty(roleName))
-                    .ToList();
+                    .ToList() ?? new List<string?>();
 
-                // Generate token using your existing method
-                var token = _jwtService.GenerateToken(user.UserName, roles);
+                if (!roles.Any())
+                {
+                    _logger.LogWarning("User {Username} has no roles assigned", request.Username);
+                }
 
-                _logger.LogInformation("User {Username} authenticated successfully", request.Username);
+                _logger.LogDebug("Generating JWT token for {Username} with roles: {Roles}",
+                    request.Username,
+                    string.Join(", ", roles));
+
+                var token = _jwtService.GenerateToken(user.UserName, roles!);
+
+                _logger.LogInformation("Successful authentication for {Username}", request.Username);
+                _logger.LogDebug("Generated token expires at {Expiration}",
+                    DateTime.UtcNow.AddMinutes(15)); // Match your JWT expiration
+
                 return new LoginResponse(true, token, null);
+            }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogWarning("Login operation canceled for {Username}: {Message}",
+                    request.Username, ex.Message);
+                throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error during login for user: {Username}", request.Username);
-                throw;
+                _logger.LogError(ex, "Critical error during login for {Username}", request.Username);
+                throw new AuthenticationException("Login failed due to system error");
             }
         }
     }

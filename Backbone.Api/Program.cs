@@ -10,6 +10,9 @@ using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
+using System.Security.Authentication;
+using FluentValidation;
+
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
@@ -59,6 +62,8 @@ builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
         }),
     poolSize: 128);
 
+builder.Services.AddValidatorsFromAssemblyContaining<LoginCommandValidator>();
+
 builder.Services.AddRepositories();
 
 builder.Services.AddAuthorization(options =>
@@ -95,7 +100,54 @@ app.UseSwaggerUI();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapPost("/login", async (LoginCommand command, IMediator mediator) => await mediator.Send(command));
+app.MapPost("/login", async (LoginCommand command, IMediator mediator, ILogger<Program> logger) =>
+{
+    // Request logging
+    logger.LogInformation("Login attempt for username: {Username}", command.Username);
+    logger.LogDebug("Login request received at {RequestTime}", DateTime.UtcNow);
+
+    try
+    {
+        // Execute command
+        var result = await mediator.Send(command);
+
+        // Success logging
+        logger.LogInformation("Successful login for username: {Username}", command.Username);
+        logger.LogDebug("Login successful at {LoginTime} with token expiration at {ExpirationTime}",
+            DateTime.UtcNow,
+            DateTime.UtcNow.AddMinutes(15)); // Adjust based on your JWT settings
+
+        return Results.Ok(result);
+    }
+    catch (AuthenticationException ex)
+    {
+        // Expected failure logging
+        logger.LogWarning("Authentication failed for username: {Username}. Reason: {FailureReason}",
+            command.Username,
+            ex.Message);
+        return Results.Unauthorized();
+    }
+    catch (ValidationException ex)
+    {
+        // Validation failure logging
+        logger.LogWarning("Invalid login request for username: {Username}. Errors: {@ValidationErrors}",
+            command.Username,
+            ex.Errors);
+        return Results.BadRequest(ex.Errors);
+    }
+    catch (Exception ex)
+    {
+        // Unexpected error logging
+        logger.LogError(ex, "Unexpected error during login for username: {Username}", command.Username);
+        return Results.Problem("An unexpected error occurred during login");
+    }
+})
+.WithName("Login")
+//.WithOpenApi()
+.Produces<LoginResponse>(StatusCodes.Status200OK)
+.Produces(StatusCodes.Status401Unauthorized)
+.Produces(StatusCodes.Status400BadRequest)
+.Produces(StatusCodes.Status500InternalServerError);
 app.MapGet("/secure", [Authorize] () => "This is a secure endpoint");
 
 app.Run();
