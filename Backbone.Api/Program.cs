@@ -1,9 +1,11 @@
 //Backbone.Api/Program.cs
 using Backbone.Application;
 using Backbone.Application.Features.Authentication.Commands.Login;
+using Backbone.Infrastructure;
 using Backbone.Infrastructure.Logging;
 using Backbone.Infrastructure.Persistence;
 using Backbone.Infrastructure.Extensions;
+using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -11,147 +13,114 @@ using Serilog;
 using Serilog.Core;
 using Serilog.Events;
 using System.Security.Authentication;
-using FluentValidation;
-
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
 
-//// Use Serilog with configuration from appsettings.json
-//builder.Host.UseSerilog((context, services, configuration) => configuration
-//    .ReadFrom.Configuration(context.Configuration)
-//    .ReadFrom.Services(services)
-//    .Enrich.FromLogContext()  
-//    );
+// Configure Serilog using our custom extension
+builder.Host.UseCustomSerilog();
 
-builder.Host
-    .UseCustomSerilog()  // From Infrastructure
-    .ConfigureServices(services => {
-        // Remove AddSerilogLogging() if not defined
-        services.AddLogging(logging =>
-        {
-            logging.AddSerilog();
-        });
-    });
-
-// Add services
+// Add services to the container
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Application services
 builder.Services.AddApplicationServices();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructureServices(config);
-//builder.Services.AddHealthChecks()
-//    .AddNpgSql(configuration.GetConnectionString("DefaultConnection"));
 
-//For DBContext
-// Essential registration (minimum)
-//builder.Services.AddDbContext<ApplicationDbContext>(options =>
-//    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// Database Context with pooling, retry policy, AND logging
+builder.Services.AddDbContextPool<ApplicationDbContext>((provider, options) =>
+{
+    var connectionString = config.GetConnectionString("DefaultConnection");
 
-// Recommended production-ready registration:
-builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        npgsqlOptions =>
-        {
-            npgsqlOptions.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName);
-            npgsqlOptions.EnableRetryOnFailure(
-                maxRetryCount: 5,
-                maxRetryDelay: TimeSpan.FromSeconds(10),
-                errorCodesToAdd: null); // Explicitly pass null for error codes
-        }),
-    poolSize: 128);
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+    {
+        npgsqlOptions.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName);
+        npgsqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorCodesToAdd: null);
+    })
+        .UseLoggerFactory(provider.GetRequiredService<ILoggerFactory>());
 
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableDetailedErrors();
+        options.EnableSensitiveDataLogging();
+    }
+}, poolSize: 128);
+
+// Fluent Validation
 builder.Services.AddValidatorsFromAssemblyContaining<LoginCommandValidator>();
 
-builder.Services.AddRepositories();
-
+// Authorization policies
 builder.Services.AddAuthorization(options =>
 {
-    // Define your role-based policies
     options.AddPolicy("RequireAdminRole", policy => policy.RequireRole("Admin"));
-    options.AddPolicy("RequireMasterRole", policy => policy.RequireRole("Master", "Admin")); // Managers and Admins can access
+    options.AddPolicy("RequireMasterRole", policy => policy.RequireRole("Master", "Admin"));
     options.AddPolicy("RequireSubscriberRole", policy => policy.RequireRole("Subscriber", "Master", "Admin"));
-
-    // Or you can use more flexible requirements
-    //options.AddPolicy("AtLeastModerator", policy =>
-    //    policy.RequireAssertion(context =>
-    //        context.User.IsInRole("Moderator") ||
-    //        context.User.IsInRole("Admin")));
 });
 
+// Build the application
 var app = builder.Build();
 
-
-
-
-// Use Middleware for Exception Handling
-app.UseMiddleware<ExceptionHandlingMiddleware>();
-
-app.UseSerilogRequestLogging(); // Log incoming requests
-
-
-// Apply migrations at startup
-app.UseMigrations();
+// Configure the HTTP request pipeline
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 // Middleware
-app.UseSwagger();
-app.UseSwaggerUI();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseSerilogRequestLogging(); // Log HTTP requests
+app.UseMigrations(); // Apply database migrations
+
+app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Endpoints
 app.MapPost("/login", async (LoginCommand command, IMediator mediator, ILogger<Program> logger) =>
 {
-    // Request logging
     logger.LogInformation("Login attempt for username: {Username}", command.Username);
-    logger.LogDebug("Login request received at {RequestTime}", DateTime.UtcNow);
 
     try
     {
-        // Execute command
         var result = await mediator.Send(command);
-
-        // Success logging
         logger.LogInformation("Successful login for username: {Username}", command.Username);
-        logger.LogDebug("Login successful at {LoginTime} with token expiration at {ExpirationTime}",
-            DateTime.UtcNow,
-            DateTime.UtcNow.AddMinutes(15)); // Adjust based on your JWT settings
-
         return Results.Ok(result);
     }
     catch (AuthenticationException ex)
     {
-        // Expected failure logging
         logger.LogWarning("Authentication failed for username: {Username}. Reason: {FailureReason}",
-            command.Username,
-            ex.Message);
+            command.Username, ex.Message);
         return Results.Unauthorized();
     }
     catch (ValidationException ex)
     {
-        // Validation failure logging
         logger.LogWarning("Invalid login request for username: {Username}. Errors: {@ValidationErrors}",
-            command.Username,
-            ex.Errors);
+            command.Username, ex.Errors);
         return Results.BadRequest(ex.Errors);
     }
     catch (Exception ex)
     {
-        // Unexpected error logging
         logger.LogError(ex, "Unexpected error during login for username: {Username}", command.Username);
         return Results.Problem("An unexpected error occurred during login");
     }
 })
 .WithName("Login")
-//.WithOpenApi()
 .Produces<LoginResponse>(StatusCodes.Status200OK)
 .Produces(StatusCodes.Status401Unauthorized)
 .Produces(StatusCodes.Status400BadRequest)
 .Produces(StatusCodes.Status500InternalServerError);
+
 app.MapGet("/secure", [Authorize] () => "This is a secure endpoint");
 
 app.Run();
 
+// Database Sink Provider implementation
 namespace Backbone.Api
 {
     public class DatabaseSinkProvider : ILogEventSink, IDisposable
@@ -160,16 +129,26 @@ namespace Backbone.Api
 
         public DatabaseSinkProvider(IServiceProvider serviceProvider)
         {
-            _serviceProvider = serviceProvider;
+            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         }
 
         public void Emit(LogEvent logEvent)
         {
-            using var scope = _serviceProvider.CreateScope();
-            var sink = scope.ServiceProvider.GetRequiredService<DatabaseSink>();
-            sink.Emit(logEvent);
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var sink = scope.ServiceProvider.GetRequiredService<DatabaseSink>();
+                sink.Emit(logEvent);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to emit log event: {ex}");
+            }
         }
 
-        public void Dispose() { }
+        public void Dispose()
+        {
+            // Cleanup resources if needed
+        }
     }
 }

@@ -2,9 +2,10 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using Serilog.Exceptions;
 using Serilog.Formatting.Compact;
 using System;
+using Microsoft.Extensions.DependencyInjection;
+using Serilog.Enrichers;
 
 namespace Backbone.Infrastructure.Logging
 {
@@ -19,19 +20,16 @@ namespace Backbone.Infrastructure.Logging
             {
                 try
                 {
-                    var logger = services.GetService<ILogger<SerilogExtensions>>();
+                    var loggerFactory = services.GetService<ILoggerFactory>();
+                    var logger = loggerFactory?.CreateLogger("SerilogExtensions");
                     logger?.LogInformation("Configuring Serilog logging");
 
                     // Base configuration
                     config
                         .MinimumLevel.Information()
                         .Enrich.FromLogContext()
-                        .Enrich.WithExceptionDetails()
                         .Enrich.WithProperty("Application", "Backbone")
-                        .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
-                        .Enrich.WithMachineName()
-                        .Enrich.WithProcessId()
-                        .Enrich.WithThreadId();
+                        .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName);
 
                     // Console sink with structured logging
                     config.WriteTo.Console(new CompactJsonFormatter());
@@ -50,55 +48,14 @@ namespace Backbone.Infrastructure.Logging
                         logger?.LogDebug("Added Debug sink for development environment");
                     }
 
-                    // Add additional sinks based on configuration
-                    ConfigureAdditionalSinks(context, config, logger);
-
                     logger?.LogInformation("Serilog configuration completed");
                 }
                 catch (Exception ex)
                 {
-                    var logger = services.GetService<ILogger<SerilogExtensions>>();
-                    logger?.LogCritical(ex, "Failed to configure Serilog");
+                    Console.WriteLine($"Failed to configure Serilog: {ex}");
                     throw new InvalidOperationException("Serilog configuration failed", ex);
                 }
             });
-        }
-
-        private static void ConfigureAdditionalSinks(
-            HostBuilderContext context,
-            LoggerConfiguration config,
-            ILogger<SerilogExtensions> logger)
-        {
-            try
-            {
-                // Elasticsearch/Kibana configuration example
-                var elasticUrl = context.Configuration["ElasticConfiguration:Uri"];
-                if (!string.IsNullOrEmpty(elasticUrl))
-                {
-                    config.WriteTo.Elasticsearch(new Serilog.Sinks.Elasticsearch.ElasticsearchSinkOptions(new Uri(elasticUrl))
-                    {
-                        AutoRegisterTemplate = true,
-                        IndexFormat = "backbone-logs-{0:yyyy.MM.dd}",
-                        ModifyConnectionSettings = x => x.BasicAuthentication(
-                            context.Configuration["ElasticConfiguration:Username"],
-                            context.Configuration["ElasticConfiguration:Password"])
-                    });
-                    logger?.LogInformation("Added Elasticsearch sink");
-                }
-
-                // Application Insights configuration
-                var appInsightsKey = context.Configuration["ApplicationInsights:InstrumentationKey"];
-                if (!string.IsNullOrEmpty(appInsightsKey))
-                {
-                    config.WriteTo.ApplicationInsights(appInsightsKey, TelemetryConverter.Traces);
-                    logger?.LogInformation("Added Application Insights sink");
-                }
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex, "Error configuring additional sinks");
-                // Continue without additional sinks
-            }
         }
     }
 }
