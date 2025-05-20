@@ -1,6 +1,21 @@
-﻿using MediatR;
+﻿//Backbone.Application/Features/Authentication/Commands/Login/LoginCommand.cs
+using MediatR;
 
 namespace Backbone.Application.Features.Authentication.Commands.Login
 {
-    public record LoginCommand(string Username, string Password) : IRequest<LoginResponse>;
+    public class LoginCommand : IRequest<LoginResponse>
+    {
+        public string Username { get; set; }
+        public string Password { get; set; }
+
+        // Add parameterless constructor for testing
+        public LoginCommand() { }
+
+        // Add parameterized constructor for convenience
+        public LoginCommand(string username, string password)
+        {
+            Username = username;
+            Password = password;
+        }
+    }
 }

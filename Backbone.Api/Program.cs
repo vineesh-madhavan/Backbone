@@ -13,6 +13,8 @@ using Serilog;
 using Serilog.Core;
 using Serilog.Events;
 using System.Security.Authentication;
+using Backbone.Api.Middleware;
+using Backbone.Core.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
@@ -51,6 +53,8 @@ builder.Services.AddDbContextPool<ApplicationDbContext>((provider, options) =>
     }
 }, poolSize: 128);
 
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
+
 // Fluent Validation
 builder.Services.AddValidatorsFromAssemblyContaining<LoginCommandValidator>();
 
@@ -79,44 +83,10 @@ app.UseMigrations(); // Apply database migrations
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
+app.UseMiddleware<ImpersonationMiddleware>();
 app.UseAuthorization();
 
-// Endpoints
-app.MapPost("/login", async (LoginCommand command, IMediator mediator, ILogger<Program> logger) =>
-{
-    logger.LogInformation("Login attempt for username: {Username}", command.Username);
-
-    try
-    {
-        var result = await mediator.Send(command);
-        logger.LogInformation("Successful login for username: {Username}", command.Username);
-        return Results.Ok(result);
-    }
-    catch (AuthenticationException ex)
-    {
-        logger.LogWarning("Authentication failed for username: {Username}. Reason: {FailureReason}",
-            command.Username, ex.Message);
-        return Results.Unauthorized();
-    }
-    catch (ValidationException ex)
-    {
-        logger.LogWarning("Invalid login request for username: {Username}. Errors: {@ValidationErrors}",
-            command.Username, ex.Errors);
-        return Results.BadRequest(ex.Errors);
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Unexpected error during login for username: {Username}", command.Username);
-        return Results.Problem("An unexpected error occurred during login");
-    }
-})
-.WithName("Login")
-.Produces<LoginResponse>(StatusCodes.Status200OK)
-.Produces(StatusCodes.Status401Unauthorized)
-.Produces(StatusCodes.Status400BadRequest)
-.Produces(StatusCodes.Status500InternalServerError);
-
-app.MapGet("/secure", [Authorize] () => "This is a secure endpoint");
+app.MapAuthenticationEndpoints();
 
 app.Run();
 

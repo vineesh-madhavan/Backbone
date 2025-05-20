@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Features\Authentication\Handlers\" />
     <Folder Include="Features\Authentication\Queries\" />
   </ItemGroup>
 

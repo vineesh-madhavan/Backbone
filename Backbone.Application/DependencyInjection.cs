@@ -1,6 +1,5 @@
 ﻿// Backbone.Application/DependencyInjection.cs
 using Backbone.Application.Features.Authentication.Commands.Login;
-using Backbone.Application.Features.Authentication.Handlers;
 using Backbone.Application.Behaviors;
 using FluentValidation;
 using MediatR;

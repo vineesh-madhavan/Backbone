@@ -1,5 +1,4 @@
-﻿// Backbone.Infrastructure/Services/CurrentUserService.cs
-
+﻿//Backbone.Infrastructure/Services/CurrentUserService.cs
 using Backbone.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -15,55 +14,38 @@ namespace Backbone.Infrastructure.Services
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly ILogger<CurrentUserService> _logger;
 
+        // Fields to store impersonation state
+        private bool _isImpersonating;
+        private string? _originalUsername;
+        private string? _impersonatedRole;
+
         public CurrentUserService(
             IHttpContextAccessor httpContextAccessor,
             ILogger<CurrentUserService> logger)
         {
             _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
-            _logger.LogDebug("CurrentUserService initialized for context {TraceIdentifier}",
-                _httpContextAccessor.HttpContext?.TraceIdentifier);
         }
 
-        public string? Username
-        {
-            get
-            {
-                try
-                {
-                    var username = _httpContextAccessor.HttpContext?.User?
-                        .FindFirstValue(ClaimTypes.Name);
+        public string? Username => GetClaimValue(ClaimTypes.Name);
+        public bool IsAuthenticated => _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
 
-                    _logger.LogTrace("Retrieved username: {Username}", username);
-                    return username;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to retrieve username from claims");
-                    return null;
-                }
-            }
+        public bool IsImpersonating
+        {
+            get => _isImpersonating || GetClaimValue("is_impersonating") == "true";
+            set => _isImpersonating = value;
         }
 
-        public bool IsAuthenticated
+        public string? OriginalUsername
         {
-            get
-            {
-                try
-                {
-                    var isAuthenticated = _httpContextAccessor.HttpContext?.User?
-                        .Identity?.IsAuthenticated ?? false;
+            get => _originalUsername ?? (IsImpersonating ? GetClaimValue("original_username") : null);
+            set => _originalUsername = value;
+        }
 
-                    _logger.LogTrace("Authentication status: {IsAuthenticated}", isAuthenticated);
-                    return isAuthenticated;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to determine authentication status");
-                    return false;
-                }
-            }
+        public string? ImpersonatedRole
+        {
+            get => _impersonatedRole ?? (IsImpersonating ? GetClaimValue("impersonation_role") : null);
+            set => _impersonatedRole = value;
         }
 
         public IEnumerable<string> Roles
@@ -77,7 +59,13 @@ namespace Backbone.Infrastructure.Services
                         .Select(c => c.Value)
                         .ToList() ?? new List<string>();
 
-                    _logger.LogDebug("User {Username} has roles: {Roles}", Username, string.Join(", ", roles));
+                    // Filter roles if impersonating with a specific role
+                    if (IsImpersonating && !string.IsNullOrEmpty(ImpersonatedRole))
+                    {
+                        roles = roles.Where(r => r == ImpersonatedRole).ToList();
+                    }
+
+                    _logger.LogDebug("User {Username} has roles: {Roles}", GetUserDisplayName(), string.Join(", ", roles));
                     return roles;
                 }
                 catch (Exception ex)
@@ -88,103 +76,71 @@ namespace Backbone.Infrastructure.Services
             }
         }
 
+        public bool CanImpersonate() => IsAdmin();
+
+        public IEnumerable<string> GetImpersonatableRoles()
+        {
+            // Only Admin can impersonate, and can impersonate as Master or Subscriber
+            return IsAdmin() ? new List<string> { "Master", "Subscriber" } : Enumerable.Empty<string>();
+        }
+
         public bool IsInRole(string role)
         {
-            using var _ = _logger.BeginScope(new { RoleCheck = role });
-
-            try
+            if (string.IsNullOrWhiteSpace(role))
             {
-                if (string.IsNullOrWhiteSpace(role))
-                {
-                    _logger.LogWarning("Role check with empty role parameter");
-                    return false;
-                }
-
-                var hasRole = Roles.Contains(role);
-                _logger.LogTrace("Role check result for {Role}: {HasRole}", role, hasRole);
-                return hasRole;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to check role membership for {Role}", role);
+                _logger.LogWarning("Role check with empty role parameter");
                 return false;
             }
+
+            return Roles.Contains(role);
         }
 
         public bool IsInAnyRole(params string[] roles)
         {
-            using var _ = _logger.BeginScope(new { Roles = roles });
-
-            try
+            if (roles == null || roles.Length == 0)
             {
-                if (roles == null || roles.Length == 0)
-                {
-                    _logger.LogWarning("Empty roles list provided for IsInAnyRole check");
-                    return false;
-                }
-
-                var result = Roles.Any(r => roles.Contains(r));
-                _logger.LogTrace("IsInAnyRole check result: {Result}", result);
-                return result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to check IsInAnyRole for roles: {Roles}", string.Join(", ", roles));
+                _logger.LogWarning("Empty roles list provided for IsInAnyRole check");
                 return false;
             }
+
+            return Roles.Any(r => roles.Contains(r));
         }
 
         public bool IsInAllRoles(params string[] roles)
         {
-            using var _ = _logger.BeginScope(new { Roles = roles });
-
-            try
+            if (roles == null || roles.Length == 0)
             {
-                if (roles == null || roles.Length == 0)
-                {
-                    _logger.LogWarning("Empty roles list provided for IsInAllRoles check");
-                    return false;
-                }
-
-                var result = roles.All(r => Roles.Contains(r));
-                _logger.LogTrace("IsInAllRoles check result: {Result}", result);
-                return result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to check IsInAllRoles for roles: {Roles}", string.Join(", ", roles));
+                _logger.LogWarning("Empty roles list provided for IsInAllRoles check");
                 return false;
             }
+
+            return roles.All(r => Roles.Contains(r));
         }
 
-        public bool IsAdmin()
+        public bool IsAdmin() => IsInRole("Admin");
+        public bool IsMaster() => IsInRole("Master");
+        public bool IsSubscriber() => IsInRole("Subscriber");
+
+        public bool IsMasterOrAdmin() => IsInAnyRole("Admin", "Master");
+
+        private string? GetClaimValue(string claimType)
         {
             try
             {
-                var isAdmin = IsInRole("Admin");
-                _logger.LogTrace("IsAdmin check result: {IsAdmin}", isAdmin);
-                return isAdmin;
+                return _httpContextAccessor.HttpContext?.User?.FindFirstValue(claimType);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to check Admin role");
-                return false;
+                _logger.LogError(ex, "Failed to retrieve claim {ClaimType}", claimType);
+                return null;
             }
         }
 
-        public bool IsMasterOrAdmin()
+        private string GetUserDisplayName()
         {
-            try
-            {
-                var result = IsInAnyRole("Admin", "Master");
-                _logger.LogTrace("IsMasterOrAdmin check result: {Result}", result);
-                return result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to check Master/Admin roles");
-                return false;
-            }
+            return IsImpersonating
+                ? $"{OriginalUsername} (impersonating {Username})"
+                : Username ?? "anonymous";
         }
     }
 }
