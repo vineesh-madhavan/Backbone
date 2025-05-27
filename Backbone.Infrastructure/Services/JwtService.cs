@@ -1,16 +1,15 @@
 //Backbone.Infrastructure/Services/JwtService.cs
-using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Backbone.Core.Interfaces;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Backbone.Core.Settings;
+using Backbone.Core.Interfaces;
 
 namespace Backbone.Infrastructure.Services
 {
@@ -18,13 +17,19 @@ namespace Backbone.Infrastructure.Services
     {
         private readonly JwtSettings _jwtSettings;
         private readonly ILogger<JwtService> _logger;
+        private readonly int _initialTokenExpirationMinutes;
 
-        public JwtService(IOptions<JwtSettings> jwtSettings, ILogger<JwtService> logger)
+        public JwtService(
+            IOptions<JwtSettings> jwtSettings,
+            IOptions<AuthSettings> authSettings,
+            ILogger<JwtService> logger)
         {
             _jwtSettings = jwtSettings.Value ?? throw new ArgumentNullException(nameof(jwtSettings));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _initialTokenExpirationMinutes = authSettings.Value.InitialTokenExpirationMinutes;
 
             ValidateJwtSettings();
+            ValidateAuthSettings();
         }
 
         private void ValidateJwtSettings()
@@ -45,7 +50,18 @@ namespace Backbone.Infrastructure.Services
                 throw new ArgumentException("JWT Expiration must be greater than 0");
         }
 
+        private void ValidateAuthSettings()
+        {
+            if (_initialTokenExpirationMinutes <= 0)
+                throw new ArgumentException("Initial token expiration must be greater than 0");
+        }
+
         public string GenerateToken(string username, IEnumerable<string> roles, IEnumerable<Claim> additionalClaims = null)
+        {
+            return GenerateToken(username, roles, _jwtSettings.ExpirationInMinutes, additionalClaims);
+        }
+
+        public string GenerateToken(string username, IEnumerable<string> roles, int expirationMinutes, IEnumerable<Claim> additionalClaims = null)
         {
             _logger.LogInformation("Generating JWT for {Username} with roles: {Roles}",
                 username, string.Join(",", roles));
@@ -55,7 +71,7 @@ namespace Backbone.Infrastructure.Services
                 ValidateInput(username, roles);
 
                 var claims = BuildClaimsList(username, roles, additionalClaims);
-                var tokenDescriptor = CreateTokenDescriptor(claims);
+                var tokenDescriptor = CreateTokenDescriptor(claims, expirationMinutes);
 
                 var tokenHandler = new JwtSecurityTokenHandler();
                 var token = tokenHandler.CreateToken(tokenDescriptor);
@@ -70,6 +86,44 @@ namespace Backbone.Infrastructure.Services
                 _logger.LogError(ex, "Failed to generate JWT for {Username}", username);
                 throw new SecurityTokenException("Token generation failed", ex);
             }
+        }
+
+        public string GenerateDirectLoginToken(string username, string role, IEnumerable<string> allRoles)
+        {
+            if (string.IsNullOrEmpty(role))
+                throw new ArgumentException("Role cannot be null or empty", nameof(role));
+
+            if (!allRoles.Contains(role))
+                throw new ArgumentException("Specified role is not available to user", nameof(role));
+
+            var claims = new List<Claim>
+        {
+            new Claim("original_roles", string.Join(",", allRoles)),
+            new Claim("current_role", role)
+        };
+
+            return GenerateToken(username, new[] { role }, _jwtSettings.ExpirationInMinutes, claims);
+        }
+
+        public string GenerateInitialToken(string username, IEnumerable<string> roles)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim("original_roles", string.Join(",", roles))
+            };
+
+            return GenerateToken(username, Enumerable.Empty<string>(), _initialTokenExpirationMinutes, claims);
+        }
+
+        public string GenerateRoleSpecificToken(string username, string selectedRole, IEnumerable<string> allRoles)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim("original_roles", string.Join(",", allRoles)),
+                new Claim("current_role", selectedRole)
+            };
+
+            return GenerateToken(username, new[] { selectedRole }, _jwtSettings.ExpirationInMinutes, claims);
         }
 
         private void ValidateInput(string username, IEnumerable<string> roles)
@@ -87,11 +141,9 @@ namespace Backbone.Infrastructure.Services
             {
                 new Claim(JwtRegisteredClaimNames.Sub, username),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim(JwtRegisteredClaimNames.Email, username),
                 new Claim(ClaimTypes.Name, username)
             };
 
-            // Add roles if any exist, otherwise add default role
             if (roles.Any())
             {
                 claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
@@ -102,7 +154,6 @@ namespace Backbone.Infrastructure.Services
                 claims.Add(new Claim(ClaimTypes.Role, "DefaultRole"));
             }
 
-            // Add any additional claims
             if (additionalClaims != null)
             {
                 claims.AddRange(additionalClaims);
@@ -111,7 +162,7 @@ namespace Backbone.Infrastructure.Services
             return claims;
         }
 
-        private SecurityTokenDescriptor CreateTokenDescriptor(IEnumerable<Claim> claims)
+        private SecurityTokenDescriptor CreateTokenDescriptor(IEnumerable<Claim> claims, int expirationMinutes)
         {
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256Signature);
@@ -119,7 +170,7 @@ namespace Backbone.Infrastructure.Services
             return new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationInMinutes),
+                Expires = DateTime.UtcNow.AddMinutes(expirationMinutes),
                 Issuer = _jwtSettings.Issuer,
                 Audience = _jwtSettings.Audience,
                 SigningCredentials = creds,
@@ -162,7 +213,7 @@ namespace Backbone.Infrastructure.Services
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(key),
                     ValidateLifetime = true,
-                    ClockSkew = TimeSpan.Zero // No tolerance for expiration time
+                    ClockSkew = TimeSpan.Zero
                 };
 
                 var principal = tokenHandler.ValidateToken(token, validationParameters, out var validatedToken);
@@ -185,6 +236,19 @@ namespace Backbone.Infrastructure.Services
                 _logger.LogError(ex, "JWT validation failed");
                 throw;
             }
+        }
+
+        public IEnumerable<string> GetOriginalRolesFromToken(string token)
+        {
+            var principal = ValidateToken(token);
+            var originalRolesClaim = principal.FindFirst("original_roles")?.Value;
+            return originalRolesClaim?.Split(',') ?? Enumerable.Empty<string>();
+        }
+
+        public string GetCurrentRoleFromToken(string token)
+        {
+            var principal = ValidateToken(token);
+            return principal.FindFirst("current_role")?.Value;
         }
     }
 }

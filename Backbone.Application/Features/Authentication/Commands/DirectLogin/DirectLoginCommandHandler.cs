@@ -1,5 +1,4 @@
-﻿//Backbone.Application.Features.Authentication.Commands.Login.LoginCommandHandler.cs
-
+﻿//Backbone Application/Features/Authentication/Commands/DirectLogin/DirectLoginCommandHandler.cs
 using Backbone.Core.Interfaces;
 using Backbone.Core.Interfaces.Data.Repositories;
 using MediatR;
@@ -10,17 +9,17 @@ using System.Security.Authentication;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Backbone.Application.Features.Authentication.Commands.Login
+namespace Backbone.Application.Features.Authentication.Commands.DirectLogin
 {
-    public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
+    public class DirectLoginCommandHandler : IRequestHandler<DirectLoginCommand, DirectLoginResponse>
     {
         private readonly IJwtService _jwtService;
-        private readonly ILogger<LoginCommandHandler> _logger;
+        private readonly ILogger<DirectLoginCommandHandler> _logger;
         private readonly IUserRepository _userRepository;
 
-        public LoginCommandHandler(
+        public DirectLoginCommandHandler(
             IJwtService jwtService,
-            ILogger<LoginCommandHandler> logger,
+            ILogger<DirectLoginCommandHandler> logger,
             IUserRepository userRepository)
         {
             _jwtService = jwtService;
@@ -28,13 +27,13 @@ namespace Backbone.Application.Features.Authentication.Commands.Login
             _userRepository = userRepository;
         }
 
-        public async Task<LoginResponse> Handle(LoginCommand request, CancellationToken cancellationToken)
+        public async Task<DirectLoginResponse> Handle(DirectLoginCommand request, CancellationToken cancellationToken)
         {
             using var _ = _logger.BeginScope(new { request.Username, RequestId = Guid.NewGuid() });
 
             try
             {
-                _logger.LogInformation("Login attempt initiated");
+                _logger.LogInformation("Direct login attempt initiated for {Username}", request.Username);
                 _logger.LogDebug("Validating credentials for {Username}", request.Username);
 
                 var isValid = await _userRepository.ValidateCredentialsAsync(
@@ -45,7 +44,7 @@ namespace Backbone.Application.Features.Authentication.Commands.Login
                 if (!isValid)
                 {
                     _logger.LogWarning("Invalid credentials provided for {Username}", request.Username);
-                    return new LoginResponse(false, null, "Invalid credentials");
+                    return new DirectLoginResponse(false, null, "Invalid credentials");
                 }
 
                 _logger.LogDebug("Credentials validated, retrieving user details");
@@ -57,7 +56,7 @@ namespace Backbone.Application.Features.Authentication.Commands.Login
                 if (user == null)
                 {
                     _logger.LogError("User not found after successful credential validation for {Username}", request.Username);
-                    return new LoginResponse(false, null, "System error");
+                    return new DirectLoginResponse(false, null, "System error");
                 }
 
                 var roles = user.UserRoleMappings?
@@ -68,31 +67,31 @@ namespace Backbone.Application.Features.Authentication.Commands.Login
                 if (!roles.Any())
                 {
                     _logger.LogWarning("User {Username} has no roles assigned", request.Username);
-                    return new LoginResponse(false, null, "User has no roles assigned");
+                    return new DirectLoginResponse(false, null, "User has no roles assigned");
                 }
 
-                // Handle single-role user
-                if (roles.Count == 1)
+                if (!roles.Contains(request.Role))
                 {
-                    _logger.LogDebug("Generating final JWT token for single-role user {Username}", request.Username);
-                    var token = _jwtService.GenerateRoleSpecificToken(user.UserName, roles[0], roles);
-                    return new LoginResponse(true, token, null, false, roles, user.Id);
+                    _logger.LogWarning("User {Username} doesn't have role {Role}", request.Username, request.Role);
+                    return new DirectLoginResponse(false, null, $"User doesn't have the '{request.Role}' role");
                 }
 
-                // Handle multi-role user
-                _logger.LogDebug("Generating initial JWT token for multi-role user {Username}", request.Username);
-                var initialToken = _jwtService.GenerateInitialToken(user.UserName, roles);
-                return new LoginResponse(true, initialToken, null, true, roles, user.Id);
+                _logger.LogDebug("Generating JWT token for {Username} with role {Role}",
+                    request.Username, request.Role);
+                var token = _jwtService.GenerateRoleSpecificToken(user.UserName, request.Role, roles);
+
+                _logger.LogInformation("Successful direct login for {Username}", request.Username);
+                return new DirectLoginResponse(true, token, null, request.Role, roles);
             }
             catch (OperationCanceledException ex)
             {
-                _logger.LogWarning("Login operation canceled: {Message}", ex.Message);
+                _logger.LogWarning("Direct login operation canceled: {Message}", ex.Message);
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Critical error during login for {Username}", request.Username);
-                throw new AuthenticationException("Login failed due to system error");
+                _logger.LogError(ex, "Critical error during direct login for {Username}", request.Username);
+                throw new AuthenticationException("Direct login failed due to system error");
             }
         }
     }

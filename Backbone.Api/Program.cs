@@ -15,6 +15,7 @@ using Serilog.Events;
 using System.Security.Authentication;
 using Backbone.Api.Middleware;
 using Backbone.Core.Settings;
+using Microsoft.Extensions.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
@@ -54,6 +55,7 @@ builder.Services.AddDbContextPool<ApplicationDbContext>((provider, options) =>
 }, poolSize: 128);
 
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
+builder.Services.Configure<AuthSettings>(builder.Configuration.GetSection("Auth"));
 
 // Fluent Validation
 builder.Services.AddValidatorsFromAssemblyContaining<LoginCommandValidator>();

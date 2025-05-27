@@ -27,7 +27,8 @@ namespace Backbone.Infrastructure.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public string? Username => GetClaimValue(ClaimTypes.Name);
+        public string UserId => GetClaimValue(ClaimTypes.NameIdentifier);
+        public string Username => GetClaimValue(ClaimTypes.Name);
         public bool IsAuthenticated => _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
 
         public bool IsImpersonating
@@ -36,16 +37,29 @@ namespace Backbone.Infrastructure.Services
             set => _isImpersonating = value;
         }
 
-        public string? OriginalUsername
+        public string OriginalUsername
         {
             get => _originalUsername ?? (IsImpersonating ? GetClaimValue("original_username") : null);
             set => _originalUsername = value;
         }
 
-        public string? ImpersonatedRole
+        public string ImpersonatedRole
         {
             get => _impersonatedRole ?? (IsImpersonating ? GetClaimValue("impersonation_role") : null);
             set => _impersonatedRole = value;
+        }
+
+        public string CurrentRole => GetClaimValue("current_role") ?? Roles.FirstOrDefault();
+
+        public IEnumerable<string> AvailableRoles
+        {
+            get
+            {
+                var originalRoles = GetClaimValue("original_roles");
+                return string.IsNullOrEmpty(originalRoles)
+                    ? Enumerable.Empty<string>()
+                    : originalRoles.Split(',');
+            }
         }
 
         public IEnumerable<string> Roles
@@ -120,10 +134,35 @@ namespace Backbone.Infrastructure.Services
         public bool IsAdmin() => IsInRole("Admin");
         public bool IsMaster() => IsInRole("Master");
         public bool IsSubscriber() => IsInRole("Subscriber");
-
         public bool IsMasterOrAdmin() => IsInAnyRole("Admin", "Master");
 
-        private string? GetClaimValue(string claimType)
+        public Claim FindClaim(string claimType)
+        {
+            try
+            {
+                return _httpContextAccessor.HttpContext?.User?.FindFirst(claimType);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to retrieve claim {ClaimType}", claimType);
+                return null;
+            }
+        }
+
+        public IEnumerable<Claim> FindClaims(string claimType)
+        {
+            try
+            {
+                return _httpContextAccessor.HttpContext?.User?.FindAll(claimType) ?? Enumerable.Empty<Claim>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to retrieve claims {ClaimType}", claimType);
+                return Enumerable.Empty<Claim>();
+            }
+        }
+
+        private string GetClaimValue(string claimType)
         {
             try
             {
