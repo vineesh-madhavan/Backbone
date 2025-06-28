@@ -5,12 +5,9 @@ using Backbone.Core.Interfaces.Data.Repositories;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using Backbone.Application.Features.Authentication.Exceptions;
 
 namespace Backbone.Application.Features.Authentication.Commands.Impersonate
 {
@@ -88,35 +85,12 @@ namespace Backbone.Application.Features.Authentication.Commands.Impersonate
                     roleToImpersonate = request.Role;
                 }
 
-                // Create claims for impersonation
-                var claims = new List<Claim>
-                {
-                    new Claim("original_user_id", originalUserId),
-                    new Claim("original_username", originalUsername),
-                    new Claim("is_impersonating", "true"),
-                    new Claim("impersonation_role", roleToImpersonate ?? "all_roles"),
-                    new Claim("original_roles", string.Join(",", availableRoles))
-                };
-
-                // Generate token
-                string token;
-                if (!string.IsNullOrEmpty(roleToImpersonate))
-                {
-                    // Specific role impersonation
-                    token = _jwtService.GenerateRoleSpecificToken(
-                        userToImpersonate.UserName,
-                        roleToImpersonate,
-                        availableRoles,
-                        claims);
-                }
-                else
-                {
-                    // Full impersonation with all roles
-                    token = _jwtService.GenerateToken(
-                        userToImpersonate.UserName,
-                        availableRoles,
-                        claims);
-                }
+                // Generate token using the dedicated impersonation method
+                var token = _jwtService.GenerateImpersonationToken(
+                    originalUsername,
+                    userToImpersonate.UserName,
+                    roleToImpersonate,
+                    availableRoles);
 
                 _logger.LogInformation(
                     "User {OriginalUser} impersonated {ImpersonatedUser} with role {Role}",

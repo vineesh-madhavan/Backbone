@@ -1,4 +1,4 @@
-﻿//Backbone.Infrastructure/Data/Repositories/UserRepository.cs
+﻿  //Backbone.Infrastructure/Data/Repositories/UserRepository.cs
 using Backbone.Core.Entities;
 using Backbone.Core.Interfaces.Data.Repositories;
 using Backbone.Infrastructure.Persistence;
@@ -140,7 +140,7 @@ namespace Backbone.Infrastructure.Data.Repositories
                 _logger.LogError(ex, "Error getting user with roles for ID {UserId}", userId);
                 throw;
             }
-        }
+        }  
 
         public async Task<User?> GetUserWithDetailsAsync(int userId, CancellationToken cancellationToken = default)
         {

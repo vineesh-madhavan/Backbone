@@ -181,5 +181,32 @@ namespace Backbone.Infrastructure.Services
                 ? $"{OriginalUsername} (impersonating {Username})"
                 : Username ?? "anonymous";
         }
+
+        public IEnumerable<Claim> GetAllClaims()
+        {
+            try
+            {
+                return _httpContextAccessor.HttpContext?.User?.Claims ?? Enumerable.Empty<Claim>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to retrieve user claims");
+                return Enumerable.Empty<Claim>();
+            }
+        }
+
+        public bool HasClaim(string claimType, string claimValue)
+        {
+            try
+            {
+                return _httpContextAccessor.HttpContext?.User?
+                    .Claims.Any(c => c.Type == claimType && c.Value == claimValue) ?? false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to check claim {ClaimType}={ClaimValue}", claimType, claimValue);
+                return false;
+            }
+        }
     }
 }

@@ -17,7 +17,7 @@ namespace Backbone.Core.Interfaces
         string GenerateInitialToken(string username, IEnumerable<string> roles);
 
         // Generates final token with selected role
-        string GenerateRoleSpecificToken(string username, string selectedRole, IEnumerable<string> allRoles);
+        string GenerateRoleSpecificToken(string username, string selectedRole, IEnumerable<string> allRoles, IEnumerable<Claim> additionalClaims = null);
 
         // Validates token and returns ClaimsPrincipal
         ClaimsPrincipal ValidateToken(string token);
@@ -29,5 +29,9 @@ namespace Backbone.Core.Interfaces
         string GetCurrentRoleFromToken(string token);
 
         string GenerateDirectLoginToken(string username, string role, IEnumerable<string> allRoles);
+
+        string GenerateTokenWithClaims(string username, IEnumerable<string> roles, IEnumerable<Claim> additionalClaims);
+        string GenerateImpersonationToken(string originalUsername, string impersonatedUsername, string role, IEnumerable<string> allRoles);
+        IEnumerable<Claim> FilterClaims(IEnumerable<Claim> claims, params string[] claimTypesToExclude);
     }
 }

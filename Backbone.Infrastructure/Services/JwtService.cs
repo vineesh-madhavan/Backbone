@@ -115,15 +115,20 @@ namespace Backbone.Infrastructure.Services
             return GenerateToken(username, Enumerable.Empty<string>(), _initialTokenExpirationMinutes, claims);
         }
 
-        public string GenerateRoleSpecificToken(string username, string selectedRole, IEnumerable<string> allRoles)
+        public string GenerateRoleSpecificToken(string username, string selectedRole, IEnumerable<string> allRoles, IEnumerable<Claim> additionalClaims = null)
         {
             var claims = new List<Claim>
-            {
-                new Claim("original_roles", string.Join(",", allRoles)),
-                new Claim("current_role", selectedRole)
-            };
+    {
+        new Claim("current_role", selectedRole),
+        new Claim("original_roles", string.Join(",", allRoles))
+    };
 
-            return GenerateToken(username, new[] { selectedRole }, _jwtSettings.ExpirationInMinutes, claims);
+            if (additionalClaims != null)
+            {
+                claims.AddRange(additionalClaims);
+            }
+
+            return GenerateToken(username, new[] { selectedRole }, claims);
         }
 
         private void ValidateInput(string username, IEnumerable<string> roles)
@@ -249,6 +254,86 @@ namespace Backbone.Infrastructure.Services
         {
             var principal = ValidateToken(token);
             return principal.FindFirst("current_role")?.Value;
+        }
+
+        public string GenerateTokenWithClaims(string username, IEnumerable<string> roles, IEnumerable<Claim> additionalClaims)
+        {
+            _logger.LogInformation("Generating token with custom claims for {Username}", username);
+
+            var claims = BuildClaimsList(username, roles);
+
+            if (additionalClaims != null)
+            {
+                claims.AddRange(additionalClaims);
+            }
+
+            return CreateToken(claims);
+        }
+
+        public string GenerateImpersonationToken(string originalUsername, string impersonatedUsername, string role, IEnumerable<string> allRoles)
+        {
+            _logger.LogInformation("Generating impersonation token from {OriginalUser} to {ImpersonatedUser}",
+                originalUsername, impersonatedUsername);
+
+            var claims = new List<Claim>
+            {
+                new Claim("original_username", originalUsername),
+                new Claim("is_impersonating", "true"),
+                new Claim("impersonation_role", role ?? "all_roles"),
+                new Claim("original_roles", string.Join(",", allRoles))
+            };
+
+            if (!string.IsNullOrEmpty(role))
+            {
+                return GenerateRoleSpecificToken(impersonatedUsername, role, allRoles, claims);
+            }
+
+            return GenerateToken(impersonatedUsername, allRoles, claims);
+        }
+
+        public IEnumerable<Claim> FilterClaims(IEnumerable<Claim> claims, params string[] claimTypesToExclude)
+        {
+            if (claims == null) return Enumerable.Empty<Claim>();
+            if (claimTypesToExclude == null || claimTypesToExclude.Length == 0) return claims;
+
+            return claims.Where(c => !claimTypesToExclude.Contains(c.Type));
+        }
+
+        private List<Claim> BuildClaimsList(string username, IEnumerable<string> roles)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, username),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(ClaimTypes.Name, username)
+            };
+
+            if (roles?.Any() == true)
+            {
+                claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+            }
+
+            return claims;
+        }
+
+        private string CreateToken(IEnumerable<Claim> claims, int? expirationMinutes = null)
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256Signature);
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(claims),
+                Expires = DateTime.UtcNow.AddMinutes(expirationMinutes ?? _jwtSettings.ExpirationInMinutes),
+                Issuer = _jwtSettings.Issuer,
+                Audience = _jwtSettings.Audience,
+                SigningCredentials = creds,
+                NotBefore = DateTime.UtcNow
+            };
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            return tokenHandler.WriteToken(token);
         }
     }
 }

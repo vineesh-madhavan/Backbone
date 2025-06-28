@@ -4,12 +4,11 @@ using Backbone.Core.Interfaces.Data.Repositories;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using Backbone.Application.Features.Authentication.Exceptions;
+using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace Backbone.Application.Features.Authentication.Commands.SwitchRole
 {
@@ -39,7 +38,7 @@ namespace Backbone.Application.Features.Authentication.Commands.SwitchRole
             try
             {
                 var currentUsername = _currentUserService.Username;
-                var currentUserId = _currentUserService.UserId;
+                //var currentUserId = _currentUserService.UserId;
                 var previousRole = _currentUserService.CurrentRole;
                 var availableRoles = _currentUserService.AvailableRoles.ToList();
 
@@ -69,33 +68,28 @@ namespace Backbone.Application.Features.Authentication.Commands.SwitchRole
                 }
 
                 // Get user to verify active status
-                var user = await _userRepository.GetByIdAsync(currentUserId, cancellationToken);
+                var user = await _userRepository.GetByUsernameAsync(currentUsername,false, cancellationToken);
                 if (user == null || !user.IsActive)
                 {
-                    _logger.LogWarning("User {UserId} not found or inactive during role switch", currentUserId);
+                    _logger.LogWarning("User {UserId} not found or inactive during role switch", currentUsername);
                     return new SwitchRoleResponse(false, null, "User account is not active");
                 }
 
-                // Create claims (preserve any existing claims)
-                var existingClaims = _currentUserService.FindClaims(null).ToList();
-                var claimsToKeep = existingClaims
-                    .Where(c => c.Type != ClaimTypes.Role &&
-                               c.Type != "current_role" &&
-                               c.Type != JwtRegisteredClaimNames.Jti)
-                    .ToList();
+                // Get and filter existing c laims
+                var existingClaims = _currentUserService.GetAllClaims();
+                var claimsToKeep = _jwtService.FilterClaims(existingClaims,
+                    ClaimTypes.Role,
+                    "current_role",
+                    JwtRegisteredClaimNames.Jti);
 
-                // Add role-specific claims
-                var claims = new List<Claim>(claimsToKeep)
-                {
-                    new Claim("current_role", request.NewRole)
-                };
+                // Add new role claim
+                var newClaims = claimsToKeep.Append(new Claim("current_role", request.NewRole));
 
-                // Generate new token
-                var token = _jwtService.GenerateRoleSpecificToken(
+                // Generate token using the new method
+                var token = _jwtService.GenerateTokenWithClaims(
                     currentUsername,
-                    request.NewRole,
-                    availableRoles,
-                    claims);
+                    new[] { request.NewRole },
+                    newClaims);
 
                 _logger.LogInformation(
                     "User {Username} successfully switched from role {PreviousRole} to {NewRole}",

@@ -29,5 +29,8 @@ namespace Backbone.Core.Interfaces
 
         Claim FindClaim(string claimType);
         IEnumerable<Claim> FindClaims(string claimType);
+
+        IEnumerable<Claim> GetAllClaims();
+        bool HasClaim(string claimType, string claimValue);
     }
 }

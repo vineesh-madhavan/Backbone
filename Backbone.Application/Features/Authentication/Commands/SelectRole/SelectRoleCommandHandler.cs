@@ -1,12 +1,15 @@
-﻿//Backbone Application/Features/Authentication/Commands/SelectRole/SelectRoleCommandHandler.cs
+﻿ //Backbone Application/Features/Authentication/Commands/SelectRole/SelectRoleCommandHandler.cs
 using Backbone.Core.Interfaces;
 using Backbone.Core.Interfaces.Data.Repositories;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Security.Authentication; // or use your custom exception
+using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace Backbone.Application.Features.Authentication.Commands.SelectRole
 {
@@ -42,7 +45,7 @@ namespace Backbone.Application.Features.Authentication.Commands.SelectRole
                     return new SelectRoleResponse(false, null, "Invalid token");
                 }
 
-                var username = principal.FindFirstValue(ClaimTypes.Name);
+                var username = principal.FindFirst(ClaimTypes.Name)?.Value;
                 var originalRoles = _jwtService.GetOriginalRolesFromToken(request.TempToken).ToList();
 
                 if (!originalRoles.Contains(request.SelectedRole))
