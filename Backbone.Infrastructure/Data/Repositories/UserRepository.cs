@@ -237,6 +237,25 @@ namespace Backbone.Infrastructure.Data.Repositories
                 throw;
             }
         }
+        public async Task<bool> IsActive(string username, CancellationToken cancellationToken = default)
+        {
+            using var _ = _logger.BeginScope(new { Username = username, Method = nameof(IsUsernameTakenAsync) });
+            _logger.LogDebug("Checking if user is active");
+
+            try
+            {
+                var isActive = await _context.Users
+                    .AnyAsync(u => u.UserName == username && !u.IsDeleted, cancellationToken); // Add logic for user status
+
+                _logger.LogDebug("Username {Username} is {Status}", username, isActive ? "active" : "inactive");
+                return isActive;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking if username {Username} is taken", username);
+                throw;
+            }
+        }
 
         public async Task<User> AddAsync(User user, CancellationToken cancellationToken = default)
         {

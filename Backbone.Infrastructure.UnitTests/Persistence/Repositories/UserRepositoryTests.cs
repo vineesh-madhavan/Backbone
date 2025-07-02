@@ -3,7 +3,7 @@ using Backbone.Core.Entities;
 using Backbone.Core.Interfaces;
 using Backbone.Infrastructure.Data;
 using Backbone.Infrastructure.Persistence;
-using Backbone.Infrastructure.Tests.Mocks;
+using Backbone.Infrastructure.UnitTests.Mocks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -187,7 +187,7 @@ namespace Backbone.Infrastructure.UnitTests.Persistence.Repositories
         [Fact]
         public async Task GetUsersWithAdminRole_UsingCurrentUserService()
         {
-            _currentUserService.Roles = new List<string> { "Admin" };
+            _currentUserService.AvailableRoles = new List<string> { "Admin" };
 
             var adminRole = new UserRole { RoleName = "Admin" };
             var subscriberRole = new UserRole { RoleName = "Subscriber" };
@@ -225,7 +225,7 @@ namespace Backbone.Infrastructure.UnitTests.Persistence.Repositories
         [Fact]
         public async Task MasterRole_HasElevatedPrivileges()
         {
-            _currentUserService.Roles = new List<string> { "Master" };
+            _currentUserService.AvailableRoles = new List<string> { "Master" };
 
             var masterRole = new UserRole { RoleName = "Master" };
             var subscriberRole = new UserRole { RoleName = "Subscriber" };

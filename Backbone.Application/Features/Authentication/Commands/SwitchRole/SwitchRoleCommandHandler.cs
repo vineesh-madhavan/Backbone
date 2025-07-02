@@ -69,7 +69,7 @@ namespace Backbone.Application.Features.Authentication.Commands.SwitchRole
 
                 // Get user to verify active status
                 var user = await _userRepository.GetByUsernameAsync(currentUsername,false, cancellationToken);
-                if (user == null || !user.IsActive)
+                if (user == null ) // check isActive logic here
                 {
                     _logger.LogWarning("User {UserId} not found or inactive during role switch", currentUsername);
                     return new SwitchRoleResponse(false, null, "User account is not active");

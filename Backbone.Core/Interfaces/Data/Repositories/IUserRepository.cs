@@ -11,6 +11,7 @@ namespace Backbone.Core.Interfaces.Data.Repositories
         Task<User?> GetByUsernameAsync(string username, bool includeDetails = false, CancellationToken cancellationToken = default);
         Task<bool> IsUsernameTakenAsync(string username, CancellationToken cancellationToken = default);
         Task<bool> ValidateCredentialsAsync(string username, string password, CancellationToken cancellationToken = default);
+        Task<bool> IsActive(string username, CancellationToken cancellationToken = default);
 
         //Task AddAsync(User user, CancellationToken cancellationToken = default);
         //Task UpdateAsync(User user, CancellationToken cancellationToken = default);

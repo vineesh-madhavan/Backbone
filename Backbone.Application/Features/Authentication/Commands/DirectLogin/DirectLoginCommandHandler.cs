@@ -52,7 +52,7 @@ namespace Backbone.Application.Features.Authentication.Commands.DirectLogin
                     request.Username,
                     true,
                     cancellationToken: cancellationToken);
-
+                 
                 if (user == null)
                 {
                     _logger.LogError("User not found after successful credential validation for {Username}", request.Username);
