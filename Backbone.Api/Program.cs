@@ -1,21 +1,22 @@
 //Backbone.Api/Program.cs
+using Backbone.Api.Middleware;
 using Backbone.Application;
 using Backbone.Application.Features.Authentication.Commands.Login;
+using Backbone.Core.Settings;
 using Backbone.Infrastructure;
+using Backbone.Infrastructure.Extensions;
 using Backbone.Infrastructure.Logging;
 using Backbone.Infrastructure.Persistence;
-using Backbone.Infrastructure.Extensions;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.OpenApi.Models;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
 using System.Security.Authentication;
-using Backbone.Api.Middleware;
-using Backbone.Core.Settings;
-using Microsoft.Extensions.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
@@ -25,7 +26,19 @@ builder.Host.UseCustomSerilog();
 
 // Add services to the container
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Backbone API",
+        Version = "v1",
+        Description = "Backbone API with custom endpoints"
+    });
+
+    // This helps Swagger discover the endpoints
+    c.TagActionsBy(api => new[] { api.GroupName });
+    c.DocInclusionPredicate((name, api) => true);
+});
 
 // Application services
 builder.Services.AddApplicationServices();
@@ -75,7 +88,11 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Backbone API V1");
+        c.RoutePrefix = string.Empty; // Serve at root
+    });
 }
 
 // Middleware

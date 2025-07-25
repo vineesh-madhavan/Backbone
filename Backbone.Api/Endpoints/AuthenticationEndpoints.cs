@@ -7,6 +7,7 @@ using Backbone.Application.Shared.Exceptions;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using System;
@@ -38,6 +39,8 @@ public static class AuthenticationEndpoints
         return group;
     }
 
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     private static async Task<IResult> Login(
         LoginCommand command,
         IMediator mediator,
@@ -79,6 +82,8 @@ public static class AuthenticationEndpoints
 
     }
 
+    [ProducesResponseType(typeof(ImpersonateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     private static async Task<IResult> Impersonate(
             ImpersonateCommand command,
             IMediator mediator,
