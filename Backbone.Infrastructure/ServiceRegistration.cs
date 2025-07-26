@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using Serilog.Core;
 using System;
 using System.Text;
 
@@ -17,15 +18,23 @@ namespace Backbone.Infrastructure
         {
             try
             {
-                var loggerFactory = services.BuildServiceProvider().GetService<ILoggerFactory>();
-                var logger = loggerFactory?.CreateLogger("ServiceRegistration");
+                //var loggerFactory = services.BuildServiceProvider().GetService<ILoggerFactory>();
+                //var logger = loggerFactory?.CreateLogger("ServiceRegistration");
 
-                logger?.LogInformation("Starting infrastructure services registration");
+                //logger?.LogInformation("Starting infrastructure services registration");
 
-                RegisterJwtServices(services, config, logger);
-                RegisterAuthentication(services, config, logger);
+                Console.WriteLine("Starting infrastructure services registration");
 
-                logger?.LogInformation("Completed infrastructure services registration");
+                //RegisterJwtServices(services, config, logger);
+                //RegisterAuthentication(services, config, logger);
+
+                RegisterJwtServices(services, config);
+                RegisterAuthentication(services, config);
+
+                //logger?.LogInformation("Completed infrastructure services registration");
+
+                Console.WriteLine("Completed infrastructure services registration");
+
                 return services;
             }
             catch (Exception ex)
@@ -36,6 +45,7 @@ namespace Backbone.Infrastructure
             }
         }
 
+        //with logging
         private static void RegisterJwtServices(IServiceCollection services, IConfiguration config, ILogger logger)
         {
             try
@@ -51,6 +61,22 @@ namespace Backbone.Infrastructure
             }
         }
 
+        private static void RegisterJwtServices(IServiceCollection services, IConfiguration config)
+        {
+            try
+            {
+                Console.WriteLine("Registering JWT services");
+                services.AddSingleton<IJwtService, JwtService>();
+                Console.WriteLine("Registered JWT service");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString(), "Failed to register JWT services");
+                throw;
+            }
+        }
+
+        //with logging
         private static void RegisterAuthentication(IServiceCollection services, IConfiguration config, ILogger logger)
         {
             try
@@ -104,6 +130,64 @@ namespace Backbone.Infrastructure
             catch (Exception ex)
             {
                 logger?.LogError(ex, "Failed to configure authentication services");
+                throw;
+            }
+        }
+
+
+        private static void RegisterAuthentication(IServiceCollection services, IConfiguration config )
+        {
+            try
+            {
+                Console.WriteLine("Configuring authentication services");
+
+                var jwtSettings = config.GetSection("Jwt");
+                if (jwtSettings == null || !jwtSettings.Exists())
+                {
+                    var error = "JWT settings not found in configuration";
+                    Console.WriteLine(error);
+                    throw new ConfigurationException(error);
+                }
+
+                var key = config["Jwt:Key"];
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    var error = "JWT signing key is missing in configuration";
+                    Console.WriteLine(error);
+                    throw new ConfigurationException(error);
+                }
+
+                services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                    .AddJwtBearer(options =>
+                    {
+                        try
+                        {
+                            options.TokenValidationParameters = new TokenValidationParameters
+                            {
+                                ValidateIssuer = true,
+                                ValidateAudience = true,
+                                ValidateLifetime = true,
+                                ValidateIssuerSigningKey = true,
+                                ValidIssuer = config["Jwt:Issuer"],
+                                ValidAudience = config["Jwt:Audience"],
+                                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key))
+                            };
+
+                            Console.WriteLine("Configured JWT bearer authentication");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine(ex.ToString(), "Failed to configure JWT bearer options");
+                            throw;
+                        }
+                    });
+
+                services.AddAuthorization();
+                Console.WriteLine("Added authorization services");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString(), "Failed to configure authentication services");
                 throw;
             }
         }

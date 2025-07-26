@@ -20,9 +20,9 @@ namespace Backbone.Infrastructure.Logging
             {
                 try
                 {
-                    var loggerFactory = services.GetService<ILoggerFactory>();
-                    var logger = loggerFactory?.CreateLogger("SerilogExtensions");
-                    logger?.LogInformation("Configuring Serilog logging");
+                    //var loggerFactory = services.GetService<ILoggerFactory>();
+                    //var logger = loggerFactory?.CreateLogger("SerilogExtensions");
+                    Console.WriteLine("Configuring Serilog logging");
 
                     // Base configuration
                     config
@@ -45,10 +45,10 @@ namespace Backbone.Infrastructure.Logging
                     if (context.HostingEnvironment.IsDevelopment())
                     {
                         config.WriteTo.Debug(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}");
-                        logger?.LogDebug("Added Debug sink for development environment");
+                        Console.WriteLine("Added Debug sink for development environment");
                     }
 
-                    logger?.LogInformation("Serilog configuration completed");
+                    Console.WriteLine("Serilog configuration completed");
                 }
                 catch (Exception ex)
                 {

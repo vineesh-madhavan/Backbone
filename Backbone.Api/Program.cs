@@ -84,6 +84,10 @@ builder.Services.AddAuthorization(options =>
 // Build the application
 var app = builder.Build();
 
+// Log the listening URLs
+var urls = app.Urls;
+Console.WriteLine($"API running on: {string.Join(", ", urls)}");
+
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {

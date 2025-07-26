@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.OpenApi;
 
 public static class AuthenticationEndpoints
 {
@@ -22,6 +23,7 @@ public static class AuthenticationEndpoints
             .AllowAnonymous();
 
         group.MapPost("/login", Login)
+            .WithOpenApi()
             .Produces<LoginResponse>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status400BadRequest)
@@ -29,6 +31,7 @@ public static class AuthenticationEndpoints
 
         // Impersonation endpoint
         group.MapPost("/impersonate", Impersonate)
+            .WithOpenApi()
             .Produces<ImpersonateResponse>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status403Forbidden)

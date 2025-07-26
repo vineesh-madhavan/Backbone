@@ -73,6 +73,7 @@
 using Backbone.Core.Interfaces;
 using Backbone.Core.Interfaces.Data.Repositories;
 using Backbone.Infrastructure.Data;
+using Backbone.Infrastructure.Data.Repositories;
 using Backbone.Infrastructure.Interceptors;
 using Backbone.Infrastructure.Persistence;
 using Backbone.Infrastructure.Services;
@@ -95,15 +96,15 @@ namespace Infrastructure
         {
             try
             {
-                var loggerFactory = services.BuildServiceProvider().GetService<ILoggerFactory>();
-                var logger = loggerFactory?.CreateLogger<LoggerCategory>();
-                logger?.LogInformation("Starting infrastructure services registration");
+                //var loggerFactory = services.BuildServiceProvider().GetService<ILoggerFactory>();
+                //var logger = loggerFactory?.CreateLogger<LoggerCategory>();
+                Console.WriteLine("Starting infrastructure services registration");
 
-                RegisterDbContext(services, configuration, logger);
-                RegisterCoreServices(services, logger);
-                RegisterInterceptors(services, logger);
+                RegisterDbContext(services, configuration);
+                RegisterCoreServices(services);
+                RegisterInterceptors(services);
 
-                logger?.LogInformation("Completed infrastructure services registration");
+                Console.WriteLine("Completed infrastructure services registration");
                 return services;
             }
             catch (Exception ex)
@@ -114,6 +115,99 @@ namespace Infrastructure
             }
         }
 
+        private static void RegisterDbContext(IServiceCollection services, IConfiguration configuration)
+        {
+            try
+            {
+                Console.WriteLine("Configuring database context");
+
+                var connectionString = configuration.GetConnectionString("DefaultConnection");
+                if (string.IsNullOrWhiteSpace(connectionString))
+                {
+                    throw new InvalidOperationException("Database connection string is missing");
+                }
+
+                services.AddDbContext<ApplicationDbContext>((sp, options) =>
+                {
+                    try
+                    {
+                        var env = sp.GetRequiredService<IWebHostEnvironment>();
+                        options.UseNpgsql(connectionString, npgsqlOptions =>
+                        {
+                            npgsqlOptions.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName);
+                            npgsqlOptions.EnableRetryOnFailure(
+                                maxRetryCount: 5,
+                                maxRetryDelay: TimeSpan.FromSeconds(10),
+                                errorCodesToAdd: null);
+                            npgsqlOptions.CommandTimeout(30); // 30 seconds timeout
+                        })
+                        .EnableDetailedErrors(env.IsDevelopment())
+                        .EnableSensitiveDataLogging(env.IsDevelopment())
+                        .AddInterceptors(
+                            sp.GetRequiredService<MasterSaveChangesInterceptor>(),
+                            sp.GetRequiredService<SerilogDbContextInterceptor>());
+
+                        Console.WriteLine("Configured ApplicationDbContext with connection string: {ConnectionString}",
+                            MaskConnectionString(connectionString));
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex.ToString(), "Failed to configure DbContext options");
+                        throw;
+                    }
+                });
+
+                Console.WriteLine("DbContext registration completed");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString(), "Failed to register DbContext");
+                throw;
+            }
+        }
+
+        private static void RegisterCoreServices(IServiceCollection services)
+        {
+            try
+            {
+                Console.WriteLine("Registering core services");
+
+                services.AddHttpContextAccessor();
+                services.AddScoped<ICurrentUserService, CurrentUserService>();
+                services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
+                services.AddScoped<IUserRepository, UserRepository>();
+                services.AddScoped<IUnitOfWork, UnitOfWork>();
+                services.AddSingleton<TimeProvider>(TimeProvider.System);
+
+                Console.WriteLine("Registered core services: ICurrentUserService, IRepository<T>, IUnitOfWork");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString(), "Failed to register core services");
+                throw;
+            }
+        }
+
+        private static void RegisterInterceptors(IServiceCollection services)
+        {
+            try
+            {
+                Console.WriteLine("Registering interceptors");
+
+                services.AddScoped<SerilogDbContextInterceptor>();
+                services.AddScoped<MasterSaveChangesInterceptor>();
+
+                Console.WriteLine("Registered interceptors: SerilogDbContextInterceptor, MasterSaveChangesInterceptor");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString(), "Failed to register interceptors");
+                throw;
+            }
+        }
+
+
+        //with logger - to be removed
         private static void RegisterDbContext(IServiceCollection services, IConfiguration configuration, ILogger<LoggerCategory> logger)
         {
             try
@@ -165,6 +259,7 @@ namespace Infrastructure
             }
         }
 
+        //with logger - to be removed
         private static void RegisterCoreServices(IServiceCollection services, ILogger<LoggerCategory> logger)
         {
             try
@@ -174,6 +269,7 @@ namespace Infrastructure
                 services.AddHttpContextAccessor();
                 services.AddScoped<ICurrentUserService, CurrentUserService>();
                 services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
+                services.AddScoped<IUserRepository, UserRepository>();
                 services.AddScoped<IUnitOfWork, UnitOfWork>();
                 services.AddSingleton<TimeProvider>(TimeProvider.System);
 
@@ -186,6 +282,7 @@ namespace Infrastructure
             }
         }
 
+        //with logger - to be removed
         private static void RegisterInterceptors(IServiceCollection services, ILogger<LoggerCategory> logger)
         {
             try
